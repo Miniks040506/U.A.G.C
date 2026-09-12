@@ -92,13 +92,23 @@ function defaultBinding(runtime) {
   return {
     mode: 'argv-template',
     supportsModel: joined.includes('{{model}}') || joined.includes('{{runtimeModel}}'),
-    supportsProvider: joined.includes('{{provider}}'),
+    supportsProvider: joined.includes('{{provider}}') || (joined.includes('{{runtimeModel}}') && (runtime.modelSelection?.format ?? '{{model}}').includes('{{provider}}')),
     format: '{{model}}',
   };
 }
 
+function validateBinding(runtime, binding) {
+  if (runtime.kind !== 'cli') return binding;
+  const templates = [...(runtime.argv ?? []), ...Object.values(runtime.env ?? {})].join('\n');
+  for (const [capability, placeholder] of [['supportsModel', '{{model}}'], ['supportsProvider', '{{provider}}']]) {
+    const transmitted = templates.includes(placeholder) || (templates.includes('{{runtimeModel}}') && String(binding.format ?? '{{model}}').includes(placeholder));
+    if (binding[capability] && !transmitted) throw new Error(`CLI ${capability} requires an argv/env placeholder that transmits ${placeholder}.`);
+  }
+  return binding;
+}
+
 export function bindingFor(runtime) {
-  return { ...defaultBinding(runtime), ...(runtime.modelSelection ?? {}) };
+  return validateBinding(runtime, { ...defaultBinding(runtime), ...(runtime.modelSelection ?? {}) });
 }
 
 function formatRuntimeModel(binding, values) {
@@ -133,7 +143,7 @@ export function resolveExecution(input, config) {
 
   const provider = override.provider ?? resolvedModel.provider;
   const model = override.model ?? resolvedModel.model;
-  const binding = { ...bindingFor(runtime), ...(override.modelSelection ?? {}) };
+  const binding = validateBinding(runtime, { ...bindingFor(runtime), ...(override.modelSelection ?? {}) });
   const strict = input.strictModelBinding ?? profile?.strictModelBinding ?? config.defaults?.strictModelBinding ?? true;
   if (typeof strict !== 'boolean') throw new Error('strictModelBinding must be boolean.');
   const warnings = [];

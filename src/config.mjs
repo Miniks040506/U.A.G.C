@@ -165,7 +165,10 @@ export async function loadConfig(configPath) {
   const models = { ...DEFAULT_MODELS, ...(user.models ?? {}) };
   const profiles = { ...DEFAULT_PROFILES, ...(user.profiles ?? {}) };
 
-  for (const [name, runtime] of Object.entries(runtimes)) validateRuntime(name, runtime);
+  for (const [name, runtime] of Object.entries(runtimes)) {
+    validateRuntime(name, runtime);
+    bindingFor(runtime);
+  }
   validateModels(models);
   validateProfiles(profiles);
 

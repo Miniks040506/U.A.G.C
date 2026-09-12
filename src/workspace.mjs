@@ -50,6 +50,7 @@ export class WorkspaceManager {
     const status = await git(gitRoot, ['status', '--porcelain']);
     if (status.stdout.trim()) throw new Error('Worktree mode requires a clean source repository. Commit or stash changes first.');
     const baseCommit = (await git(gitRoot, ['rev-parse', 'HEAD'])).stdout.trim();
+    const originalBranch = (await git(gitRoot, ['symbolic-ref', '--quiet', 'HEAD'], { allowFailure: true })).stdout.trim();
     const repoName = safeName(path.basename(gitRoot));
     const relativeCwd = path.relative(gitRoot, absoluteCwd);
     if (path.isAbsolute(relativeCwd) || relativeCwd === '..' || relativeCwd.startsWith(`..${path.sep}`)) {
@@ -64,6 +65,7 @@ export class WorkspaceManager {
     return {
       requestedMode,
       baseCommit,
+      originalBranch,
       mode: 'worktree',
       originalCwd: absoluteCwd,
       workspaceCwd: path.join(worktreePath, relativeCwd),
@@ -117,6 +119,11 @@ export class WorkspaceManager {
     const targetRoot = job.workspace.originalGitRoot;
     const status = await git(targetRoot, ['status', '--porcelain']);
     if (status.stdout.trim()) throw new Error('Target repository has local changes. Commit or stash them before applying.');
+    const head = (await git(targetRoot, ['rev-parse', 'HEAD'])).stdout.trim();
+    const branch = (await git(targetRoot, ['symbolic-ref', '--quiet', 'HEAD'], { allowFailure: true })).stdout.trim();
+    if (head !== job.workspace.baseCommit || branch !== job.workspace.originalBranch) {
+      throw new Error('Target branch or HEAD changed, or this job lacks target identity. Start a new job from the intended clean branch.');
+    }
     const patch = await fs.readFile(job.patchFile, 'utf8');
     if (!patch.trim()) return { targetRoot, changed: [], applied: false, reason: 'No changes to apply.' };
     // git apply checks all hunks before writing; avoid --3way, --index and reset.

@@ -40,6 +40,13 @@ test('worktree changes can be captured and applied after review', async () => {
   assert.deepEqual(captured.changedFiles.sort(), ['a.txt', 'b.txt']);
   assert.match(captured.patch, /b\.txt/);
 
+  const originalBranch = (await must('git', ['branch', '--show-current'], repo)).stdout.trim();
+  await must('git', ['switch', '-c', 'different-target'], repo);
+  await assert.rejects(manager.apply(job), /branch or HEAD changed/);
+  await assert.rejects(fs.stat(path.join(repo, 'b.txt')), { code: 'ENOENT' });
+  await must('git', ['switch', originalBranch], repo);
+  const legacy = { ...job, workspace: { ...workspace, originalBranch: undefined } };
+  await assert.rejects(manager.apply(legacy), /lacks target identity/);
   const applied = await manager.apply(job);
   assert.equal(applied.targetRoot, await fs.realpath(repo));
   assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'two\n');

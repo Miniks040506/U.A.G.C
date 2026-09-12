@@ -24,9 +24,9 @@ export class CliAdapter {
       cwd: job.workspace.workspaceCwd,
       promptFile,
       prompt,
-      model: rawModel ?? job.model ?? '',
-      runtimeModel: model ?? job.runtimeModel ?? rawModel ?? '',
-      provider: provider ?? job.provider ?? '',
+      model: job.modelBinding?.supportsModel === false ? '' : rawModel ?? job.model ?? '',
+      runtimeModel: job.modelBinding?.supportsModel === false ? '' : model ?? job.runtimeModel ?? rawModel ?? '',
+      provider: job.modelBinding?.supportsProvider === false ? '' : provider ?? job.provider ?? '',
       runtime: job.runtime ?? job.agent,
     };
     const command = expand(rawCommand, vars);

@@ -50,11 +50,15 @@ test('worktree isolation and patch failures preserve source files and index', as
   await fs.writeFile(path.join(repo, 'a.txt'), 'conflicting target\n');
   await git(repo, 'add', '.');
   await git(repo, 'commit', '-m', 'conflict');
-  await assert.rejects(manager.apply(job), /git apply/);
+  await assert.rejects(manager.apply(job), /branch or HEAD changed/);
+  const fresh = await manager.prepare(repo, 'worktree', 'conflict-test');
+  const freshJob = { workspace: fresh, patchFile };
+  await assert.rejects(manager.apply(freshJob), /git apply/);
   assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'conflicting target\n');
   assert.equal(await git(repo, 'status', '--porcelain'), '');
   await fs.writeFile(patchFile, '');
-  assert.equal((await manager.apply(job)).applied, false);
+  assert.equal((await manager.apply(freshJob)).applied, false);
+  await manager.cleanup(freshJob);
   await git(repo, 'worktree', 'lock', workspace.worktreePath);
   await assert.rejects(manager.cleanup(job), /git worktree/);
   assert.equal((await fs.stat(workspace.worktreePath)).isDirectory(), true);
