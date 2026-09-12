@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { AcpxAdapter } from '../src/acpx-adapter.mjs';
+
+test('ACP configuration lock prevents overlap and preserves external edits', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'uagc-acp-config-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const config = path.join(root, '.acpxrc.json');
+  const original = '{"ttl":2}\n';
+  await fs.writeFile(config, original);
+  const adapter = new AcpxAdapter();
+  adapter.cli = path.join(root, 'fake-cli.mjs');
+  await fs.writeFile(adapter.cli, "console.log(JSON.stringify({result:{stopReason:'end_turn'}}));\n");
+  const job = { agent: 'registry-id', permissions: 'read-only', timeoutSeconds: 5, sessionName: 'test', workspace: { workspaceCwd: root } };
+  const agent = { kind: 'acp', target: 'custom-target', argv: [process.execPath, 'fake'] };
+  let release, entered;
+  const ready = new Promise((r) => { entered = r; });
+  adapter.ensureSession = async () => { entered(); await new Promise((r) => { release = r; }); };
+  const first = adapter.prompt(job, agent, 'prompt');
+  await ready;
+  assert.deepEqual(JSON.parse(await fs.readFile(config, 'utf8')).agents['custom-target'].argv, agent.argv);
+  await assert.rejects(adapter.prompt(job, agent, 'prompt'), /busy or needs recovery/);
+  release(); await first;
+  assert.equal(await fs.readFile(config, 'utf8'), original);
+  await assert.rejects(fs.stat(`${config}.uagc-lock`), { code: 'ENOENT' });
+  adapter.ensureSession = async () => { await fs.writeFile(config, '{"user":"changed"}'); };
+  await assert.rejects(adapter.prompt(job, agent, 'prompt'), /changed during execution/);
+  assert.equal(await fs.readFile(config, 'utf8'), '{"user":"changed"}');
+  assert.equal(JSON.parse(await fs.readFile(`${config}.uagc-lock`, 'utf8')).original, original);
+});
