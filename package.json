@@ -1,0 +1,23 @@
+{
+  "name": "universal-agent-mcp",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Universal MCP gateway where Claude can architect/review while interchangeable coding runtimes execute with explicit runtime/provider/model bindings.",
+  "bin": {
+    "universal-agent-mcp": "src/index.mjs"
+  },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "acpx": "0.15.1",
+    "zod": "4.4.3"
+  }
+}
