@@ -29,6 +29,7 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
   const config = {
     stateDir: path.join(root, 'state'),
     runtimes: {
+      brokenacp: { kind: 'acp', target: 'audit-broken', argv: [process.execPath, '-e', 'process.exit(1)'] },
       fakecli: { kind: 'cli', argv: [process.execPath, path.join(project, 'fixtures/fake-worker.mjs'), '{{promptFile}}'] },
       fakeacp: { kind: 'acp', target: 'audit-acp', argv: [process.execPath, path.join(project, 'fixtures/fake-acp.mjs')], modelSelection: { supportsModel: true, supportsProvider: true, format: '{{provider}}:{{model}}' } },
     },
@@ -121,6 +122,10 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
   await call('agent_cancel', { jobId: readonly.id });
   assert.equal((await call('agent_status', { jobId: readonly.id })).status, 'failed');
   await call('agent_cleanup', { jobId: readonly.id });
+  const broken = await call('agent_delegate', { runtime: 'brokenacp', cwd: repo, task: 'Fail before creating a session', permissions: 'read-only' });
+  await done(broken.id, 'failed');
+  assert.equal((await call('agent_cleanup', { jobId: broken.id })).cleaned, true);
+  await assert.rejects(fs.stat(broken.workspaceCwd), { code: 'ENOENT' });
   const protocol = (await fs.readFile(env.UAGC_FAKE_LOG, 'utf8')).trim().split('\n').map(JSON.parse);
   const prompts = protocol.filter((m) => m.method === 'session/prompt');
   assert.equal(prompts.length, 3);

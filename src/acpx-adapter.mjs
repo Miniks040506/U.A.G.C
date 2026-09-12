@@ -18,7 +18,7 @@ async function withTemporaryAcpxConfig(cwd, agentName, agent, fn) {
     if (error.code === 'EEXIST') throw new Error(`ACP workspace is busy or needs recovery: inspect ${lockPath}.`);
     throw error;
   });
-  let original = null, injected, preserve = false;
+  let original = null, injected, preserve = false, operationError;
   try {
     try { original = await fs.readFile(configPath, 'utf8'); } catch (error) {
       if (error.code !== 'ENOENT') throw error;
@@ -32,6 +32,9 @@ async function withTemporaryAcpxConfig(cwd, agentName, agent, fn) {
       await fs.writeFile(configPath, injected);
     }
     return await fn();
+  } catch (error) {
+    operationError = error;
+    throw error;
   } finally {
     try {
       if (injected !== undefined) {
@@ -44,6 +47,9 @@ async function withTemporaryAcpxConfig(cwd, agentName, agent, fn) {
       }
     } catch (error) {
       preserve = true;
+      if (operationError?.code === 'ETERMINATION') {
+        throw Object.assign(new Error(`${operationError.message}; ${error.message}`, { cause: operationError }), { code: 'ETERMINATION' });
+      }
       throw error;
     } finally {
       await lock.close();
@@ -103,7 +109,19 @@ export class AcpxAdapter {
     return withTemporaryAcpxConfig(job.workspace.workspaceCwd, agent.target ?? job.agent, agent, async () => {
       const args = [...this.baseArgs(job, agent), 'sessions', 'close', job.sessionName];
       const result = await runCommand(process.execPath, args, { cwd: job.workspace.workspaceCwd, timeoutMs: 15000 });
-      if (result.code !== 0) throw new Error(`Cannot close ACP session: ${result.stderr || result.stdout}`);
+      if (result.code !== 0) {
+        // acpx 0.15.1 reports an absent named session as a structured CLI error.
+        const expected = `No named session "${job.sessionName}" for cwd ${await fs.realpath(job.workspace.workspaceCwd)} and agent ${agent.target ?? job.agent}`;
+        const absent = result.stdout.trim().split(/\r?\n/).some((line) => {
+          try {
+            const { error } = JSON.parse(line);
+            return error?.code === -32603 && error.data?.origin === 'cli'
+              && error.data?.acpxCode === 'RUNTIME' && error.message === expected;
+          } catch { return false; }
+        });
+        if (absent) return { ...result, alreadyAbsent: true };
+        throw new Error(`Cannot close ACP session: ${result.stderr || result.stdout}`);
+      }
       return result;
     });
   }
