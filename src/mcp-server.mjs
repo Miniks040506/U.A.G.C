@@ -28,7 +28,7 @@ const executionSelectorSchema = {
 
 export function buildMcpServer(broker) {
   const server = new McpServer(
-    { name: 'universal-agent-mcp', version: '0.2.0' },
+    { name: 'universal-agent-mcp', version: '0.2.1' },
     {
       instructions: [
         'Use this server when you are the architect/reviewer and want an external coding agent runtime to execute implementation.',

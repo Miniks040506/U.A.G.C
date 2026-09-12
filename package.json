@@ -1,9 +1,9 @@
 {
   "name": "universal-agent-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
-  "description": "Universal MCP gateway where Claude can architect/review while interchangeable coding runtimes execute with explicit runtime/provider/model bindings.",
+  "description": "U.A.G.C: a local MCP gateway for reviewed coding-agent workflows with explicit runtime, provider and model bindings.",
   "bin": {
     "universal-agent-mcp": "src/index.mjs"
   },

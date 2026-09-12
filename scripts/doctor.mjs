@@ -7,7 +7,7 @@ const config = await loadConfig(args.configPath);
 const broker = new AgentBroker(config);
 
 
-console.log(`Universal Agent MCP: v0.2`);
+console.log(`U.A.G.C: v0.2.1`);
 console.log(`Node: ${process.version}`);
 console.log(`State: ${config.stateDir}`);
 console.log('');
