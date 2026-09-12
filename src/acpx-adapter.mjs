@@ -87,6 +87,7 @@ export class AcpxAdapter {
       const result = await runCommand(process.execPath, args, {
         cwd: job.workspace.workspaceCwd,
         signal,
+        timeoutMs: job.timeoutSeconds * 1000,
       });
       if (result.code !== 0) {
         throw new Error(`acpx session ensure failed (${result.code}): ${result.stderr.trim() || result.stdout.trim()}`);
@@ -106,6 +107,7 @@ export class AcpxAdapter {
       const result = await runCommand(process.execPath, args, {
         cwd: job.workspace.workspaceCwd,
         signal,
+        timeoutMs: job.timeoutSeconds * 1000,
         onStdout,
         onStderr,
       });
@@ -119,7 +121,7 @@ export class AcpxAdapter {
         ...this.baseArgs(job, agent),
         'cancel', '-s', job.sessionName,
       ];
-      return runCommand(process.execPath, args, { cwd: job.workspace.workspaceCwd });
+      return runCommand(process.execPath, args, { cwd: job.workspace.workspaceCwd, timeoutMs: 5000 });
     });
   }
 }

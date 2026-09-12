@@ -41,6 +41,7 @@ export class CliAdapter {
     const result = await runCommand(command, args, {
       cwd: job.workspace.workspaceCwd,
       signal,
+      timeoutMs: job.timeoutSeconds * 1000,
       stdin,
       env: expandEnv(runtime.env, vars),
       onStdout,
