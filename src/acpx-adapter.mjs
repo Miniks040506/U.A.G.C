@@ -99,6 +99,15 @@ export class AcpxAdapter {
     });
   }
 
+  async close(job, agent) {
+    return withTemporaryAcpxConfig(job.workspace.workspaceCwd, agent.target ?? job.agent, agent, async () => {
+      const args = [...this.baseArgs(job, agent), 'sessions', 'close', job.sessionName];
+      const result = await runCommand(process.execPath, args, { cwd: job.workspace.workspaceCwd, timeoutMs: 15000 });
+      if (result.code !== 0) throw new Error(`Cannot close ACP session: ${result.stderr || result.stdout}`);
+      return result;
+    });
+  }
+
   async cancel(job, agent) {
     // The running prompt owns the temporary config lock until cancellation settles.
     const args = [...this.baseArgs(job, agent), 'cancel', '-s', job.sessionName];

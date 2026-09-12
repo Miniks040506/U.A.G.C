@@ -306,6 +306,7 @@ export class AgentBroker {
     const job = await this.requireJob(jobId);
     if (job.cleanedAt) return job.cleanupResult;
     this.assertIdle(job);
+    if (job.kind === 'acp') await this.acpx.close(job, this.getRuntime(job.runtime ?? job.agent));
     const result = await this.workspaces.cleanup(job, { deleteBranch });
     await this.jobs.update(job.id, { cleanedAt: now(), cleanupResult: result });
     return result;
