@@ -90,13 +90,7 @@ export class AgentBroker {
   }
 
   async delegate(input) {
-    const execution = resolveExecution(
-      {
-        ...input,
-        strictModelBinding: input.strictModelBinding ?? this.config.defaults.strictModelBinding,
-      },
-      this.config,
-    );
+    const execution = resolveExecution(input, this.config);
     const runtime = this.getRuntime(execution.runtime);
     const permissions = input.permissions ?? this.config.defaults.permissions;
     validatePermissions(runtime, permissions);

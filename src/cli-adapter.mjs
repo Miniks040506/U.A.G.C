@@ -2,14 +2,7 @@ import { runCommand } from './process.mjs';
 import { validatePermissions } from './config.mjs';
 
 function expand(value, vars) {
-  return value
-    .replaceAll('{{cwd}}', vars.cwd)
-    .replaceAll('{{promptFile}}', vars.promptFile)
-    .replaceAll('{{prompt}}', vars.prompt)
-    .replaceAll('{{model}}', vars.model ?? '')
-    .replaceAll('{{runtimeModel}}', vars.runtimeModel ?? vars.model ?? '')
-    .replaceAll('{{provider}}', vars.provider ?? '')
-    .replaceAll('{{runtime}}', vars.runtime ?? '');
+  return value.replace(/\{\{(cwd|promptFile|prompt|model|runtimeModel|provider|runtime)\}\}/g, (_, key) => vars[key] ?? '');
 }
 
 function expandEnv(rawEnv, vars) {

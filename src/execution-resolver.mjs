@@ -56,7 +56,7 @@ function resolveModel(config, requestedModel, explicitProvider) {
     };
   }
 
-  const modelEntry = config.models?.[requestedModel];
+  const modelEntry = (Object.hasOwn(config.models ?? {}, requestedModel) ? config.models[requestedModel] : undefined);
   if (modelEntry != null) {
     const normalized = normalizeModel(requestedModel, modelEntry);
     return {
@@ -88,7 +88,7 @@ function defaultBinding(runtime) {
   }
 
   const argv = runtime.argv ?? [];
-  const joined = argv.join('\n');
+  const joined = [...argv, ...Object.values(runtime.env ?? {})].join('\n');
   return {
     mode: 'argv-template',
     supportsModel: joined.includes('{{model}}') || joined.includes('{{runtimeModel}}'),
@@ -97,7 +97,7 @@ function defaultBinding(runtime) {
   };
 }
 
-function bindingFor(runtime) {
+export function bindingFor(runtime) {
   return { ...defaultBinding(runtime), ...(runtime.modelSelection ?? {}) };
 }
 
@@ -110,7 +110,7 @@ function formatRuntimeModel(binding, values) {
 export function resolveExecution(input, config) {
   const runtimes = getRuntimes(config);
   const profileId = input.profile ?? null;
-  const profile = profileId ? config.profiles?.[profileId] : null;
+  const profile = profileId && Object.hasOwn(config.profiles ?? {}, profileId) ? config.profiles[profileId] : null;
   if (profileId && !profile) {
     throw new Error(`Unknown execution profile "${profileId}". Call profile_list first.`);
   }
@@ -120,7 +120,7 @@ export function resolveExecution(input, config) {
     throw new Error('No coding runtime selected. Supply runtime=<id>, agent=<legacy-id>, or profile=<id>.');
   }
 
-  const runtime = runtimes[runtimeId];
+  const runtime = Object.hasOwn(runtimes, runtimeId) ? runtimes[runtimeId] : null;
   if (!runtime) {
     throw new Error(`Unknown runtime "${runtimeId}". Call runtime_list (or legacy agent_list) first.`);
   }
@@ -134,7 +134,8 @@ export function resolveExecution(input, config) {
   const provider = override.provider ?? resolvedModel.provider;
   const model = override.model ?? resolvedModel.model;
   const binding = { ...bindingFor(runtime), ...(override.modelSelection ?? {}) };
-  const strict = input.strictModelBinding ?? profile?.strictModelBinding ?? true;
+  const strict = input.strictModelBinding ?? profile?.strictModelBinding ?? config.defaults?.strictModelBinding ?? true;
+  if (typeof strict !== 'boolean') throw new Error('strictModelBinding must be boolean.');
   const warnings = [];
 
   if (model && !binding.supportsModel) {

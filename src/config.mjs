@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { publicModelView, publicProfileView } from './execution-resolver.mjs';
+import { bindingFor, publicModelView, publicProfileView } from './execution-resolver.mjs';
 
 const DEFAULT_RUNTIMES = {
   codex: {
@@ -94,28 +94,37 @@ export function parseCliArgs(argv = process.argv.slice(2)) {
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === '--config') {
+      if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('--config requires a file path.');
       out.configPath = argv[i + 1];
       i += 1;
     } else if (token === '--help' || token === '-h') {
       out.help = true;
+    } else {
+      throw new Error(`Unknown argument: ${token}`);
     }
   }
   return out;
 }
 
 function validateRuntime(name, runtime) {
-  if (!runtime || typeof runtime !== 'object') {
+  if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime)) {
     throw new Error(`Invalid runtime config for ${name}`);
   }
   if (!['acp', 'cli'].includes(runtime.kind)) {
     throw new Error(`Runtime ${name} must have kind "acp" or "cli"`);
   }
+  if (runtime.kind === 'cli' && !runtime.argv?.length) throw new Error(`Runtime ${name} requires argv.`);
   if (runtime.kind === 'acp' && !runtime.target) runtime.target = name;
   if (runtime.argv && (!Array.isArray(runtime.argv) || runtime.argv.some((x) => typeof x !== 'string'))) {
     throw new Error(`Runtime ${name}.argv must be an array of strings`);
   }
-  if (runtime.modelSelection && typeof runtime.modelSelection !== 'object') {
+  if (runtime.modelSelection && (typeof runtime.modelSelection !== 'object' || Array.isArray(runtime.modelSelection))) {
     throw new Error(`Runtime ${name}.modelSelection must be an object`);
+  }
+  if (runtime.env && (typeof runtime.env !== 'object' || Array.isArray(runtime.env))) throw new Error(`Runtime ${name}.env must be an object.`);
+  if (runtime.kind === 'acp' && runtime.env) throw new Error(`Runtime ${name}: env templates are supported only for CLI runtimes.`);
+  for (const key of ['supportsModel', 'supportsProvider']) {
+    if (runtime.modelSelection?.[key] != null && typeof runtime.modelSelection[key] !== 'boolean') throw new Error(`Runtime ${name}.${key} must be boolean.`);
   }
 }
 
@@ -143,6 +152,10 @@ export async function loadConfig(configPath) {
     user = JSON.parse(raw);
   }
 
+  if (!user || typeof user !== 'object' || Array.isArray(user)) throw new Error('Config must be an object.');
+  for (const key of ['agents', 'runtimes', 'models', 'profiles', 'defaults']) {
+    if (user[key] != null && (typeof user[key] !== 'object' || Array.isArray(user[key]))) throw new Error(`Config ${key} must be an object.`);
+  }
   // V0.1 used "agents". V0.2 calls them runtimes, while accepting both keys.
   const runtimes = {
     ...DEFAULT_RUNTIMES,
@@ -174,6 +187,12 @@ export async function loadConfig(configPath) {
     },
   };
 
+  const defaults = config.defaults;
+  if (!['worktree', 'shared'].includes(defaults.workspaceMode)) throw new Error('Invalid default workspaceMode.');
+  if (!['read-only', 'approve-all', 'runtime-managed'].includes(defaults.permissions)) throw new Error('Invalid default permissions; workspace-write has been retired.');
+  if (!Number.isInteger(defaults.timeoutSeconds) || defaults.timeoutSeconds < 1 || defaults.timeoutSeconds > 21600) throw new Error('Invalid timeoutSeconds (1-21600).');
+  if (!Number.isInteger(defaults.maxDiffChars) || defaults.maxDiffChars < 1000 || defaults.maxDiffChars > 1000000) throw new Error('Invalid maxDiffChars (1000-1000000).');
+  if (typeof defaults.strictModelBinding !== 'boolean') throw new Error('strictModelBinding must be boolean.');
   // Validate profile references and bindings early.
   for (const id of Object.keys(profiles)) {
     const view = publicProfileView(id, profiles[id], config);
@@ -183,10 +202,9 @@ export async function loadConfig(configPath) {
 }
 
 export function publicRuntimeView(name, runtime, available) {
-  const selection = runtime.modelSelection ?? {};
-  const cliText = (runtime.argv ?? []).join(' ');
-  const supportsModelSelection = selection.supportsModel ?? (runtime.kind === 'acp' || cliText.includes('{{model}}') || cliText.includes('{{runtimeModel}}'));
-  const supportsProviderSelection = selection.supportsProvider ?? cliText.includes('{{provider}}');
+  const selection = bindingFor(runtime);
+  const supportsModelSelection = selection.supportsModel;
+  const supportsProviderSelection = selection.supportsProvider;
   return {
     id: name,
     kind: runtime.kind,
