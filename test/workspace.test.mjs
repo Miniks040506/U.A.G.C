@@ -18,6 +18,7 @@ test('worktree changes can be captured and applied after review', async () => {
   const state = path.join(root, 'state');
   await fs.mkdir(repo);
   await must('git', ['init'], repo);
+  await must('git', ['config', 'core.autocrlf', 'false'], repo);
   await must('git', ['config', 'user.email', 'test@example.com'], repo);
   await must('git', ['config', 'user.name', 'Test'], repo);
   await fs.writeFile(path.join(repo, 'a.txt'), 'one\n');

@@ -26,10 +26,14 @@ export class WorkspaceManager {
   }
 
   async prepare(originalCwd, requestedMode, jobId) {
+    if (!['worktree', 'shared'].includes(requestedMode)) throw new Error('Unknown workspace mode.');
     const absoluteCwd = path.resolve(originalCwd);
     const gitRoot = await findGitRoot(absoluteCwd);
 
-    if (requestedMode !== 'worktree' || !gitRoot) {
+    if (requestedMode === 'worktree' && !gitRoot) {
+      throw new Error('Worktree mode requires a Git repository; select shared explicitly to run without isolation.');
+    }
+    if (requestedMode === 'shared') {
       return {
         requestedMode,
         mode: 'shared',
@@ -43,6 +47,9 @@ export class WorkspaceManager {
       };
     }
 
+    const status = await git(gitRoot, ['status', '--porcelain']);
+    if (status.stdout.trim()) throw new Error('Worktree mode requires a clean source repository. Commit or stash changes first.');
+    const baseCommit = (await git(gitRoot, ['rev-parse', 'HEAD'])).stdout.trim();
     const repoName = safeName(path.basename(gitRoot));
     const relativeCwd = path.relative(gitRoot, absoluteCwd);
     const worktreePath = path.join(this.stateDir, 'worktrees', repoName, jobId);
@@ -53,6 +60,7 @@ export class WorkspaceManager {
 
     return {
       requestedMode,
+      baseCommit,
       mode: 'worktree',
       originalCwd: absoluteCwd,
       workspaceCwd: path.join(worktreePath, relativeCwd),
@@ -70,10 +78,11 @@ export class WorkspaceManager {
     }
 
     if (job.workspace.mode === 'worktree') {
+      if (!job.workspace.baseCommit) throw new Error('Cannot capture a worktree without its original base commit.');
       await git(job.workspace.gitRoot, ['add', '-A']);
-      const changed = await git(job.workspace.gitRoot, ['diff', '--cached', '--name-only', 'HEAD']);
-      const stat = await git(job.workspace.gitRoot, ['diff', '--cached', '--stat', 'HEAD']);
-      const patch = await git(job.workspace.gitRoot, ['diff', '--cached', '--binary', 'HEAD']);
+      const changed = await git(job.workspace.gitRoot, ['diff', '--cached', '--name-only', job.workspace.baseCommit]);
+      const stat = await git(job.workspace.gitRoot, ['diff', '--cached', '--stat', job.workspace.baseCommit]);
+      const patch = await git(job.workspace.gitRoot, ['diff', '--cached', '--binary', job.workspace.baseCommit]);
       return {
         changedFiles: changed.stdout.split(/\r?\n/).map((x) => x.trim()).filter(Boolean),
         diffStat: stat.stdout.trim(),
@@ -101,23 +110,17 @@ export class WorkspaceManager {
       throw new Error('agent_apply requires a worktree-backed job with a captured patch.');
     }
 
+    if (allowDirty) throw new Error('allowDirty is no longer supported: preserve user changes before applying.');
     const targetRoot = job.workspace.originalGitRoot;
     const status = await git(targetRoot, ['status', '--porcelain']);
-    if (status.stdout.trim() && !allowDirty) {
-      throw new Error('Target repository has local changes. Refusing to apply automatically; commit/stash them or call with allowDirty=true.');
-    }
-
-    const result = await git(targetRoot, ['apply', '--3way', '--index', job.patchFile], { allowFailure: true });
-    if (result.code !== 0) {
-      throw new Error(`git apply failed: ${result.stderr.trim() || result.stdout.trim()}`);
-    }
-
-    await git(targetRoot, ['reset']);
+    if (status.stdout.trim()) throw new Error('Target repository has local changes. Commit or stash them before applying.');
+    const patch = await fs.readFile(job.patchFile, 'utf8');
+    if (!patch.trim()) return { targetRoot, changed: [], applied: false, reason: 'No changes to apply.' };
+    // git apply checks all hunks before writing; avoid --3way, --index and reset.
+    await git(targetRoot, ['apply', '--check', '-'], { stdin: patch });
+    await git(targetRoot, ['apply', '-'], { stdin: patch });
     const after = await git(targetRoot, ['status', '--porcelain']);
-    return {
-      targetRoot,
-      changed: after.stdout.split(/\r?\n/).filter(Boolean),
-    };
+    return { targetRoot, changed: after.stdout.split(/\r?\n/).filter(Boolean), applied: true };
   }
 
   async cleanup(job, { deleteBranch = true } = {}) {
@@ -125,9 +128,9 @@ export class WorkspaceManager {
       return { cleaned: false, reason: 'No isolated worktree to clean.' };
     }
 
-    await git(job.workspace.originalGitRoot, ['worktree', 'remove', '--force', job.workspace.worktreePath], { allowFailure: true });
+    await git(job.workspace.originalGitRoot, ['worktree', 'remove', '--force', job.workspace.worktreePath]);
     if (deleteBranch && job.workspace.branch) {
-      await git(job.workspace.originalGitRoot, ['branch', '-D', job.workspace.branch], { allowFailure: true });
+      await git(job.workspace.originalGitRoot, ['branch', '-D', job.workspace.branch]);
     }
     return { cleaned: true, worktreePath: job.workspace.worktreePath, branch: job.workspace.branch };
   }

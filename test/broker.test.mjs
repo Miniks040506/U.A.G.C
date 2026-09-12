@@ -27,6 +27,7 @@ test('broker delegates to a generic CLI worker and applies reviewed patch', asyn
   const stateDir = path.join(root, 'state');
   await fs.mkdir(repo);
   await must('git', ['init'], repo);
+  await must('git', ['config', 'core.autocrlf', 'false'], repo);
   await must('git', ['config', 'user.email', 'test@example.com'], repo);
   await must('git', ['config', 'user.name', 'Test'], repo);
   await fs.writeFile(path.join(repo, 'base.txt'), 'base\n');
