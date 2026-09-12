@@ -28,6 +28,19 @@ The v0.2.0 input contained 29 files and 2,452 physical lines. All files were rea
 
 Run the full suite with `npm test`. Integration fixtures create temporary repositories and a temporary ACP home. They need Node and Git but no provider credentials or model calls.
 
+## v0.2.2 regression audit
+
+- Local Windows / Node 24.14.0: 28 tests pass, including real acpx with a deterministic worker that exits before session creation.
+- The new regression cases were also run against a temporary copy of the v0.2.1 source. They failed for all five original defects: duplicate state ownership, missing partial patches, target branch drift, absent-session cleanup and declared-but-untransmitted CLI models.
+- Cross-process ownership is rejected before another gateway can alter a live job. Closing the owner permits a fresh broker to inspect interrupted jobs; abandoned locks require manual inspection.
+- Timeout and cancellation retain partial changes after confirmed local termination. Uncertain termination does not capture or allow cleanup; failed jobs cannot be applied.
+- Branch/HEAD drift and missing legacy target identity are rejected. Dirty targets and conflicting patches still preserve source files and index.
+- Only the exact structured missing-session response from pinned acpx is tolerated during close. Permission/storage errors still propagate.
+- Follow-up review cases reject releasing ownership during workspace preparation and preserve uncertain-termination classification if ACP config restoration also fails. Both tests failed before their fixes and passed afterward.
+- CLI binding checks cover configuration loading, runtime-specific overrides, direct and formatted environment placeholders, and null public runtimeModel reporting.
+- The beginner guide's three JSON examples were parsed; its demo configuration was exercised through actual MCP stdio discovery, delegate, result, apply and cleanup. Normal server exit released the state lock. Local documentation links were checked.
+- The guide demo does not validate the Claude Desktop UI or a live Hermes/provider connection.
+
 ## Environment
 
 Local audit and implementation checks were run on Windows with Node 24.14.0 and Git 2.53.0.windows.1. CI is configured for Node 22/24 on Ubuntu and Windows. Its status is the authority for those remote checks; configuration alone is not a claim that a run passed.
@@ -56,9 +69,10 @@ The temporary pre-implementation installation returned zero known advisories fro
 1. Update permission values. ACP defaults to `read-only`; writing requires explicit `approve-all`. CLI jobs must select `runtime-managed`.
 2. Remove `allowDirty=true` from apply calls. Review and preserve user changes before applying worker patches.
 3. Start a fresh job for worktree state that lacks the saved `baseCommit`. Old patches are not silently recaptured against a new HEAD.
-4. Do not run multiple gateway processes against the same state directory. Configure a separate `stateDir` per process/client.
-5. If a job is interrupted or termination is uncertain, inspect processes and worktree contents before recovery. Never blindly replay a write operation.
-6. Treat doctor output as discovery. Establish readiness separately with the real runtime and its provider.
+4. Configure a separate `stateDir` per process/client. v0.2.2 refuses a second owner via `gateway.lock`. After a crash, inspect the recorded PID and surviving workers before removing only the stale lock.
+5. v0.2.2 requires both the saved source branch and base commit when applying. Older jobs lacking branch identity must be reviewed separately or replaced with a fresh job; do not fabricate migration metadata.
+6. If a job is interrupted or termination is uncertain, inspect processes and worktree contents before recovery. Never blindly replay a write operation.
+7. Treat doctor output as discovery. Establish readiness separately with the real runtime and its provider.
 
 ## Review policy
 
