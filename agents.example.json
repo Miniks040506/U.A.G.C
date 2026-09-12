@@ -1,0 +1,77 @@
+{
+  "runtimes": {
+    "hermes": {
+      "kind": "acp",
+      "target": "hermes",
+      "argv": ["hermes", "acp"],
+      "description": "Hermes Agent in ACP mode. V0.2 can bind provider:model per job.",
+      "prerequisite": "hermes",
+      "modelSelection": {
+        "mode": "acp",
+        "supportsModel": true,
+        "supportsProvider": true,
+        "format": "{{provider}}:{{model}}"
+      }
+    },
+    "my-acp-agent": {
+      "kind": "acp",
+      "target": "my-acp-agent",
+      "argv": ["my-agent", "acp", "--stdio"],
+      "description": "Example custom ACP coding runtime",
+      "prerequisite": "my-agent",
+      "modelSelection": {
+        "mode": "acp",
+        "supportsModel": true,
+        "supportsProvider": false,
+        "format": "{{model}}"
+      }
+    },
+    "example-cli": {
+      "kind": "cli",
+      "argv": ["my-coding-agent", "--cwd", "{{cwd}}", "--provider", "{{provider}}", "--model", "{{model}}", "--prompt-file", "{{promptFile}}"],
+      "description": "Example non-ACP CLI runtime. Placeholders include {{cwd}}, {{promptFile}}, {{prompt}}, {{model}}, {{runtimeModel}}, {{provider}}, {{runtime}}.",
+      "prerequisite": "my-coding-agent",
+      "modelSelection": {
+        "mode": "argv-template",
+        "supportsModel": true,
+        "supportsProvider": true,
+        "format": "{{model}}"
+      }
+    }
+  },
+  "models": {
+    "qwen": {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder",
+      "description": "Qwen3 Coder through OpenRouter",
+      "tags": ["coding", "agentic"]
+    },
+    "deepseek": {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "description": "Example DeepSeek alias through OpenRouter; replace with the exact OpenRouter slug you prefer.",
+      "tags": ["coding", "reasoning"]
+    }
+  },
+  "profiles": {
+    "qwen-hermes": {
+      "runtime": "hermes",
+      "model": "qwen",
+      "role": "implementer",
+      "description": "Hermes coding runtime using the qwen model alias"
+    },
+    "deepseek-hermes": {
+      "runtime": "hermes",
+      "model": "deepseek",
+      "role": "implementer",
+      "description": "Hermes coding runtime using the deepseek model alias"
+    }
+  },
+  "defaults": {
+    "workspaceMode": "worktree",
+    "permissions": "workspace-write",
+    "timeoutSeconds": 1800,
+    "maxDiffChars": 120000,
+    "strictModelBinding": true
+  }
+}

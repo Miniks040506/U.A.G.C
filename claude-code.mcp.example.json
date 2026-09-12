@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "universal-agents": {
+      "command": "node",
+      "args": [
+        "C:/ABSOLUTE/PATH/universal-agent-mcp/src/index.mjs",
+        "--config",
+        "C:/ABSOLUTE/PATH/universal-agent-mcp/agents.example.json"
+      ]
+    }
+  }
+}

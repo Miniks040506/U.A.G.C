@@ -1,0 +1,25 @@
+Universal Agent MCP: v0.2
+Node: v22.16.0
+State: /home/oai/.universal-agent-mcp
+
+Runtimes
+OK  codex        ACP via acpx caps=resume,model prerequisite=npx
+MISS hermes       ACP via acpx caps=resume,model,provider prerequisite=hermes
+OK  opencode     ACP via acpx caps=resume,model prerequisite=npx
+MISS openclaw     ACP via acpx caps=resume,model prerequisite=openclaw
+MISS gemini       ACP via acpx caps=resume,model prerequisite=gemini
+MISS qwen         ACP via acpx caps=resume,model prerequisite=qwen
+MISS cursor       ACP via acpx caps=resume,model prerequisite=cursor-agent
+MISS copilot      ACP via acpx caps=resume,model prerequisite=copilot
+MISS kimi         ACP via acpx caps=resume,model prerequisite=kimi
+MISS kiro         ACP via acpx caps=resume,model prerequisite=kiro-cli-chat
+MISS my-acp-agent ACP via acpx caps=resume,model prerequisite=my-agent
+MISS example-cli  CLI          caps=model,provider prerequisite=my-coding-agent
+
+Models (2)
+- qwen: openrouter:qwen/qwen3-coder
+- deepseek: openrouter:deepseek/deepseek-v4.1-flash
+
+Profiles (2)
+OK  qwen-hermes: runtime=hermes provider=openrouter model=qwen/qwen3-coder runtimeModel=openrouter:qwen/qwen3-coder
+OK  deepseek-hermes: runtime=hermes provider=openrouter model=deepseek/deepseek-v4.1-flash runtimeModel=openrouter:deepseek/deepseek-v4.1-flash

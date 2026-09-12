@@ -1,0 +1,6 @@
+Investigate this repository yourself first.
+Plan and design the implementation in detail.
+Then use Qwen through Hermes to implement your plan in an isolated worktree.
+When the worker finishes, review the actual diff yourself.
+If anything is wrong, send precise feedback back to the same Hermes/Qwen session and review again.
+Only apply the patch after it passes your review, then run final validation yourself.
