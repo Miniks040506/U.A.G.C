@@ -31,10 +31,22 @@ export class AgentBroker {
     this.acpx = new AcpxAdapter();
     this.cli = new CliAdapter();
     this.controllers = new Map();
+    this.attempts = new Map();
+    this.actions = new Set();
   }
 
   async init() {
     await fs.mkdir(this.config.stateDir, { recursive: true });
+    const entries = await fs.readdir(path.join(this.config.stateDir, 'jobs')).catch((error) => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
+    for (const id of entries.filter((id) => /^[a-f0-9]{12}$/.test(id))) {
+      const job = await this.jobs.get(id);
+      if (job && ['queued', 'running', 'cancelling'].includes(job.status)) {
+        await this.jobs.update(id, { status: 'interrupted', error: 'Gateway restarted; inspect any surviving worker before manual recovery.' });
+      }
+    }
   }
 
   runtimes() {
@@ -143,9 +155,7 @@ export class AgentBroker {
     };
 
     await this.jobs.create(job);
-    void this.runAttempt(id, promptFile).catch(async (error) => {
-      await this.jobs.update(id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
-    });
+    this.startAttempt(id, promptFile);
 
     return this.publicJob(await this.jobs.get(id));
   }
@@ -154,7 +164,40 @@ export class AgentBroker {
     return runtime.kind === 'acp' ? this.acpx : this.cli;
   }
 
-  async runAttempt(jobId, promptFile) {
+  startAttempt(jobId, promptFile) {
+    const controller = new AbortController();
+    this.controllers.set(jobId, controller);
+    const pending = this.runAttempt(jobId, promptFile, controller).catch(async (error) => {
+      const status = error.code === 'ETERMINATION' ? 'termination-uncertain'
+        : controller.signal.aborted ? 'cancelled' : 'failed';
+      await this.jobs.update(jobId, { status, error: error.message ?? String(error), finishedAt: now(), patchAvailable: false });
+    }).finally(() => {
+      this.controllers.delete(jobId);
+      this.attempts.delete(jobId);
+    });
+    this.attempts.set(jobId, pending);
+    void pending.catch((error) => console.error('[uagc] Cannot persist job outcome:', error.message));
+  }
+
+  async withAction(id, action) {
+    if (this.actions.has(id)) throw new Error('Another operation is already in progress for this job.');
+    this.actions.add(id);
+    try { return await action(); } finally { this.actions.delete(id); }
+  }
+
+  assertIdle(job) {
+    if (this.attempts.has(job.id) || ['queued', 'running', 'cancelling', 'interrupted', 'termination-uncertain'].includes(job.status)) {
+      throw new Error('Job is active or worker termination is unverified; inspect it before proceeding.');
+    }
+    if (job.cleanedAt) throw new Error('Job worktree has already been cleaned.');
+  }
+
+  resume(id, feedback) { return this.withAction(id, () => this.resumeJob(id, feedback)); }
+  cancel(id) { return this.withAction(id, () => this.cancelJob(id)); }
+  apply(id, allowDirty = false) { return this.withAction(id, () => this.applyJob(id, allowDirty)); }
+  cleanup(id, deleteBranch = true) { return this.withAction(id, () => this.cleanupJob(id, deleteBranch)); }
+
+  async runAttempt(jobId, promptFile, controller) {
     const job = await this.requireJob(jobId);
     const runtimeName = job.runtime ?? job.agent;
     const runtime = this.getRuntime(runtimeName);
@@ -162,8 +205,6 @@ export class AgentBroker {
     const jobDir = this.jobs.jobDir(job.id);
     const eventsFile = path.join(jobDir, `attempt-${attempt}.ndjson`);
     const stderrFile = path.join(jobDir, `attempt-${attempt}.stderr.log`);
-    const controller = new AbortController();
-    this.controllers.set(job.id, controller);
 
     await fs.writeFile(eventsFile, '');
     await fs.writeFile(stderrFile, '');
@@ -173,15 +214,17 @@ export class AgentBroker {
       eventsFile,
       stderrFile,
       error: null,
+      finishedAt: null,
+      patchAvailable: false,
+      assistantText: '',
+      changedFiles: [],
+      diffStat: '',
       startedAt: now(),
     });
 
-    const append = async (file, chunk) => {
-      try {
-        await fs.appendFile(file, chunk);
-      } catch {
-        // Diagnostics should not crash the worker.
-      }
+    let diagnostics = Promise.resolve();
+    const append = (file, chunk) => {
+      diagnostics = diagnostics.then(() => fs.appendFile(file, chunk)).catch(() => {});
     };
 
     let result;
@@ -194,18 +237,10 @@ export class AgentBroker {
         onStdout: (chunk) => void append(eventsFile, chunk),
         onStderr: (chunk) => void append(stderrFile, chunk),
       });
-    } catch (error) {
-      this.controllers.delete(job.id);
-      const cancelled = controller.signal.aborted;
-      await this.jobs.update(job.id, {
-        status: cancelled ? 'cancelled' : 'failed',
-        error: error instanceof Error ? error.message : String(error),
-        finishedAt: now(),
-      });
-      throw error;
+    } finally {
+      await diagnostics;
     }
 
-    this.controllers.delete(job.id);
     const refreshed = await this.requireJob(job.id);
     const captured = await this.workspaces.capture(refreshed);
     await fs.writeFile(refreshed.patchFile, captured.patch ?? '');
@@ -230,50 +265,48 @@ export class AgentBroker {
     });
   }
 
-  async resume(jobId, feedback) {
+  async resumeJob(jobId, feedback) {
+    if (typeof feedback !== 'string' || !feedback.trim()) throw new Error('Feedback is required.');
     const job = await this.requireJob(jobId);
     if (job.kind !== 'acp') {
       throw new Error('agent_resume currently requires an ACP-backed runtime.');
     }
-    if (job.status === 'running' || job.status === 'queued') {
-      throw new Error('Job is still running; wait for completion or cancel it first.');
-    }
+    this.assertIdle(job);
+    if (job.appliedAt) throw new Error('Applied jobs cannot be resumed; start a new job from the updated repository.');
     const nextAttempt = (job.attempt ?? 0) + 1;
     const promptFile = path.join(this.jobs.jobDir(job.id), `prompt-${nextAttempt}.md`);
     await fs.writeFile(promptFile, buildResumePrompt(feedback));
     await this.jobs.update(job.id, { promptFile, reviewFeedback: feedback, status: 'queued' });
-    void this.runAttempt(job.id, promptFile).catch(async (error) => {
-      await this.jobs.update(job.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
-    });
+    this.startAttempt(job.id, promptFile);
     return this.publicJob(await this.requireJob(job.id));
   }
 
-  async cancel(jobId) {
+  async cancelJob(jobId) {
     const job = await this.requireJob(jobId);
+    if (!this.attempts.has(job.id)) return this.publicJob(job);
     const runtime = this.getRuntime(job.runtime ?? job.agent);
+    await this.jobs.update(job.id, { status: 'cancelling', cancelledAt: now() });
+    const pending = this.attempts.get(job.id);
     this.controllers.get(job.id)?.abort();
-    try {
-      await this.adapterFor(runtime).cancel(job, runtime);
-    } catch {
-      // Cooperative cancellation is best effort; local abort still applies.
-    }
-    await this.jobs.update(job.id, { status: 'cancelled', cancelledAt: now() });
+    try { await this.adapterFor(runtime).cancel(job, runtime); } catch {}
+    await pending;
     return this.publicJob(await this.requireJob(job.id));
   }
 
-  async apply(jobId, allowDirty = false) {
+  async applyJob(jobId, allowDirty = false) {
     const job = await this.requireJob(jobId);
+    this.assertIdle(job);
+    if (job.appliedAt) throw new Error('Job has already been applied.');
     if (job.status !== 'completed') throw new Error('Only completed jobs can be applied.');
     const result = await this.workspaces.apply(job, { allowDirty });
     await this.jobs.update(job.id, { appliedAt: now(), applyResult: result });
     return result;
   }
 
-  async cleanup(jobId, deleteBranch = true) {
+  async cleanupJob(jobId, deleteBranch = true) {
     const job = await this.requireJob(jobId);
-    if (job.status === 'running' || job.status === 'queued') {
-      throw new Error('Cannot clean up a running job. Cancel it first.');
-    }
+    if (job.cleanedAt) return job.cleanupResult;
+    this.assertIdle(job);
     const result = await this.workspaces.cleanup(job, { deleteBranch });
     await this.jobs.update(job.id, { cleanedAt: now(), cleanupResult: result });
     return result;
