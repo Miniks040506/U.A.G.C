@@ -167,7 +167,7 @@ export async function loadConfig(configPath) {
     profiles,
     defaults: {
       workspaceMode: user.defaults?.workspaceMode ?? 'worktree',
-      permissions: user.defaults?.permissions ?? 'workspace-write',
+      permissions: user.defaults?.permissions ?? 'read-only',
       timeoutSeconds: user.defaults?.timeoutSeconds ?? 1800,
       maxDiffChars: user.defaults?.maxDiffChars ?? 120_000,
       strictModelBinding: user.defaults?.strictModelBinding ?? true,
@@ -210,3 +210,10 @@ export function publicRuntimeView(name, runtime, available) {
 // Legacy export name.
 export const publicAgentView = publicRuntimeView;
 export { publicModelView, publicProfileView };
+
+export function validatePermissions(runtime, permissions) {
+  const allowed = runtime.kind === 'acp' ? ['read-only', 'approve-all'] : ['runtime-managed'];
+  if (!allowed.includes(permissions)) {
+    throw new Error(`Runtime ${runtime.kind} cannot enforce permissions=${permissions}. Select explicitly: ${allowed.join(', ')}. Worktrees are not OS sandboxes.`);
+  }
+}

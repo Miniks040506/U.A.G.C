@@ -104,7 +104,7 @@ export function buildMcpServer(broker) {
         plan: z.string().optional().describe('Detailed architect plan the coding runtime must implement.'),
         extraContext: z.string().optional(),
         workspaceMode: z.enum(['worktree', 'shared']).optional(),
-        permissions: z.enum(['read-only', 'workspace-write']).optional(),
+        permissions: z.enum(['read-only', 'approve-all', 'runtime-managed']).optional().describe('ACP: read-only or explicit approve-all. CLI: runtime-managed; the gateway cannot enforce CLI permissions.'),
         timeoutSeconds: z.number().int().min(10).max(21600).optional(),
       }),
     },

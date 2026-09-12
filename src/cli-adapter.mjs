@@ -1,4 +1,5 @@
 import { runCommand } from './process.mjs';
+import { validatePermissions } from './config.mjs';
 
 function expand(value, vars) {
   return value
@@ -22,6 +23,7 @@ function expandEnv(rawEnv, vars) {
 
 export class CliAdapter {
   async prompt(job, runtime, promptFile, { signal, model, provider, rawModel, onStdout, onStderr } = {}) {
+    validatePermissions(runtime, job.permissions);
     if (!runtime.argv?.length) throw new Error(`CLI runtime ${job.runtime ?? job.agent} has no argv.`);
     const [rawCommand, ...rawArgs] = runtime.argv;
     const prompt = await import('node:fs/promises').then((fs) => fs.readFile(promptFile, 'utf8'));

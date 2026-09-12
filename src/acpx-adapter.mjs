@@ -16,7 +16,8 @@ function permissionArgs(permissions) {
   if (permissions === 'read-only') {
     return ['--approve-reads', '--non-interactive-permissions', 'deny'];
   }
-  return ['--approve-all', '--non-interactive-permissions', 'deny'];
+  if (permissions === 'approve-all') return ['--approve-all', '--non-interactive-permissions', 'deny'];
+  throw new Error('ACP permissions must be read-only or explicitly approve-all.');
 }
 
 async function withTemporaryAcpxConfig(cwd, agentName, agent, fn) {

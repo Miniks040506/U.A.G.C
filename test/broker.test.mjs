@@ -46,7 +46,7 @@ test('broker delegates to a generic CLI worker and applies reviewed patch', asyn
     },
     defaults: {
       workspaceMode: 'worktree',
-      permissions: 'workspace-write',
+      permissions: 'runtime-managed',
       timeoutSeconds: 30,
       maxDiffChars: 100000,
     },

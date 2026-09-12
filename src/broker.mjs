@@ -7,7 +7,7 @@ import { AcpxAdapter } from './acpx-adapter.mjs';
 import { CliAdapter } from './cli-adapter.mjs';
 import { buildImplementationPrompt, buildResumePrompt } from './prompt.mjs';
 import { commandExists } from './process.mjs';
-import { publicRuntimeView, publicModelView, publicProfileView } from './config.mjs';
+import { publicRuntimeView, publicModelView, publicProfileView, validatePermissions } from './config.mjs';
 import { getRuntimes, resolveExecution } from './execution-resolver.mjs';
 
 function shortId() {
@@ -98,6 +98,11 @@ export class AgentBroker {
       this.config,
     );
     const runtime = this.getRuntime(execution.runtime);
+    const permissions = input.permissions ?? this.config.defaults.permissions;
+    validatePermissions(runtime, permissions);
+    if (typeof input.cwd !== 'string' || !input.cwd.trim() || typeof input.task !== 'string' || !input.task.trim()) throw new Error('cwd and task are required.');
+    const timeout = input.timeoutSeconds ?? this.config.defaults.timeoutSeconds;
+    if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 21600) throw new Error('Invalid worker timeout.');
     const id = shortId();
     const workspace = await this.workspaces.prepare(
       input.cwd,
@@ -136,7 +141,7 @@ export class AgentBroker {
       task: input.task,
       plan: input.plan ?? '',
       extraContext: input.extraContext ?? '',
-      permissions: input.permissions ?? this.config.defaults.permissions,
+      permissions,
       timeoutSeconds: input.timeoutSeconds ?? this.config.defaults.timeoutSeconds,
       sessionName: `uagent-${id}`,
       workspace,
@@ -326,7 +331,7 @@ export class AgentBroker {
     const limit = maxDiffChars ?? this.config.defaults.maxDiffChars;
     let diff = '';
     let diffTruncated = false;
-    if (includeDiff && job.patchFile) {
+    if (includeDiff && job.patchAvailable && job.patchFile) {
       try {
         const raw = await fs.readFile(job.patchFile, 'utf8');
         diffTruncated = raw.length > limit;

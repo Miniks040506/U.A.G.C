@@ -7,7 +7,7 @@ test('acpx adapter forwards resolved provider:model binding via --model', () => 
   const job = {
     agent: 'hermes',
     runtime: 'hermes',
-    permissions: 'workspace-write',
+    permissions: 'approve-all',
     timeoutSeconds: 60,
     workspace: { workspaceCwd: '/tmp/repo' },
   };

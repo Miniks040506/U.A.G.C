@@ -69,7 +69,7 @@
   },
   "defaults": {
     "workspaceMode": "worktree",
-    "permissions": "workspace-write",
+    "permissions": "read-only",
     "timeoutSeconds": 1800,
     "maxDiffChars": 120000,
     "strictModelBinding": true
