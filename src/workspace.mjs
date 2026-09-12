@@ -13,7 +13,7 @@ async function git(cwd, args, options = {}) {
 export async function findGitRoot(cwd) {
   const result = await git(cwd, ['rev-parse', '--show-toplevel'], { allowFailure: true });
   if (result.code !== 0) return null;
-  return path.resolve(result.stdout.trim());
+  return fs.realpath(path.resolve(result.stdout.trim()));
 }
 
 function safeName(value) {
@@ -27,7 +27,7 @@ export class WorkspaceManager {
 
   async prepare(originalCwd, requestedMode, jobId) {
     if (!['worktree', 'shared'].includes(requestedMode)) throw new Error('Unknown workspace mode.');
-    const absoluteCwd = path.resolve(originalCwd);
+    const absoluteCwd = await fs.realpath(path.resolve(originalCwd));
     const gitRoot = await findGitRoot(absoluteCwd);
 
     if (requestedMode === 'worktree' && !gitRoot) {
@@ -52,6 +52,9 @@ export class WorkspaceManager {
     const baseCommit = (await git(gitRoot, ['rev-parse', 'HEAD'])).stdout.trim();
     const repoName = safeName(path.basename(gitRoot));
     const relativeCwd = path.relative(gitRoot, absoluteCwd);
+    if (path.isAbsolute(relativeCwd) || relativeCwd === '..' || relativeCwd.startsWith(`..${path.sep}`)) {
+      throw new Error('Requested directory resolves outside the Git root.');
+    }
     const worktreePath = path.join(this.stateDir, 'worktrees', repoName, jobId);
     const branch = `uagent/${jobId}`;
     await fs.mkdir(path.dirname(worktreePath), { recursive: true });

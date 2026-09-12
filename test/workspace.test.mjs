@@ -41,7 +41,7 @@ test('worktree changes can be captured and applied after review', async () => {
   assert.match(captured.patch, /b\.txt/);
 
   const applied = await manager.apply(job);
-  assert.equal(applied.targetRoot, repo);
+  assert.equal(applied.targetRoot, await fs.realpath(repo));
   assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'two\n');
   assert.equal(await fs.readFile(path.join(repo, 'b.txt'), 'utf8'), 'new\n');
 
