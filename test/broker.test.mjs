@@ -73,5 +73,6 @@ test('broker delegates to a generic CLI worker and applies reviewed patch', asyn
   assert.match(await fs.readFile(path.join(repo, 'worker-output.txt'), 'utf8'), /plan-received/);
 
   await broker.cleanup(started.id);
+  broker.close();
   await fs.rm(root, { recursive: true, force: true });
 });

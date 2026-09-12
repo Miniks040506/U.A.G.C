@@ -50,10 +50,9 @@ test('broker cancellation waits for worker exit and preserves terminal jobs', as
   await broker.jobs.update(id, { cleanedAt: null, appliedAt: 'now' });
   await assert.rejects(broker.resume(id, 'retry'), /Applied/);
   await broker.jobs.update(id, { status: 'running', appliedAt: null });
-  const restarted = new AgentBroker(broker.config);
-  await restarted.init();
-  assert.equal((await restarted.status(id)).status, 'interrupted');
-  await assert.rejects(restarted.cleanup(id), /unverified/);
+  const competing = new AgentBroker(broker.config);
+  await assert.rejects(competing.init(), /locked/);
+  assert.equal(JSON.parse(await fs.readFile(broker.jobs.jobFile(id), 'utf8')).status, 'running');
   const resumedId = '000000000003';
   await broker.jobs.create({ id: resumedId, agent: 'slow', runtime: 'slow', kind: 'acp', status: 'completed', attempt: 1, exitCode: 0, stopReason: 'end_turn', assistantTextTruncated: true });
   broker.cli.prompt = async () => { throw new Error('fixture setup failure'); };
@@ -62,5 +61,12 @@ test('broker cancellation waits for worker exit and preserves terminal jobs', as
   assert.equal(failed.exitCode, null);
   assert.equal(failed.stopReason, null);
   assert.equal((await broker.jobs.get(resumedId)).assistantTextTruncated, false);
+  await Promise.all(broker.attempts.values());
+  broker.close();
+  const restarted = new AgentBroker(broker.config);
+  await restarted.init();
+  assert.equal((await restarted.status(id)).status, 'interrupted');
+  await assert.rejects(restarted.cleanup(id), /unverified/);
+  restarted.close();
 
 });

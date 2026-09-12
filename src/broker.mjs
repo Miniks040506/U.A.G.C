@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { JobStore } from './job-store.mjs';
+import { acquireStateLock } from './state-lock.mjs';
 import { WorkspaceManager } from './workspace.mjs';
 import { AcpxAdapter } from './acpx-adapter.mjs';
 import { CliAdapter } from './cli-adapter.mjs';
@@ -33,10 +34,25 @@ export class AgentBroker {
     this.controllers = new Map();
     this.attempts = new Map();
     this.actions = new Set();
+    this.admissions = 0;
   }
 
   async init() {
     await fs.mkdir(this.config.stateDir, { recursive: true });
+    const release = acquireStateLock(this.config.stateDir);
+    try {
+      await this.recoverJobs();
+      this.releaseStateLock = release;
+    } catch (error) { release(); throw error; }
+  }
+
+  close() {
+    if (this.admissions || this.attempts.size || this.actions.size) throw new Error('Cannot close an active broker; cancel its jobs first.');
+    this.releaseStateLock?.();
+    this.releaseStateLock = null;
+  }
+
+  async recoverJobs() {
     const entries = await fs.readdir(path.join(this.config.stateDir, 'jobs')).catch((error) => {
       if (error.code === 'ENOENT') return [];
       throw error;
@@ -90,10 +106,16 @@ export class AgentBroker {
   }
 
   async delegate(input) {
+    this.admissions += 1;
+    try { return await this.delegateJob(input); } finally { this.admissions -= 1; }
+  }
+
+  async delegateJob(input) {
     const execution = resolveExecution(input, this.config);
     const runtime = this.getRuntime(execution.runtime);
     const permissions = input.permissions ?? this.config.defaults.permissions;
     validatePermissions(runtime, permissions);
+    if (!this.releaseStateLock) throw new Error('Initialize the broker before starting jobs.');
     if (typeof input.cwd !== 'string' || !input.cwd.trim() || typeof input.task !== 'string' || !input.task.trim()) throw new Error('cwd and task are required.');
     const timeout = input.timeoutSeconds ?? this.config.defaults.timeoutSeconds;
     if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 21600) throw new Error('Invalid worker timeout.');
@@ -182,6 +204,7 @@ export class AgentBroker {
   }
 
   async withAction(id, action) {
+    if (!this.releaseStateLock) throw new Error('Initialize the broker before changing jobs.');
     if (this.actions.has(id)) throw new Error('Another operation is already in progress for this job.');
     this.actions.add(id);
     try { return await action(); } finally { this.actions.delete(id); }
@@ -233,7 +256,7 @@ export class AgentBroker {
       diagnostics = diagnostics.then(() => fs.appendFile(file, chunk)).catch(() => {});
     };
 
-    let result;
+    let result, executionError;
     try {
       result = await this.adapterFor(runtime).prompt(job, runtime, promptFile, {
         signal: controller.signal,
@@ -243,28 +266,37 @@ export class AgentBroker {
         onStdout: (chunk) => void append(eventsFile, chunk),
         onStderr: (chunk) => void append(stderrFile, chunk),
       });
+    } catch (error) {
+      if (error.code === 'ETERMINATION') throw error;
+      executionError = error;
     } finally {
       await diagnostics;
     }
 
     const refreshed = await this.requireJob(job.id);
-    const captured = await this.workspaces.capture(refreshed);
-    await fs.writeFile(refreshed.patchFile, captured.patch ?? '');
+    let captured;
+    try {
+      captured = await this.workspaces.capture(refreshed);
+      await fs.writeFile(refreshed.patchFile, captured.patch ?? '');
+    } catch (error) {
+      if (executionError) throw new Error(executionError.message + '; partial-change capture failed: ' + error.message);
+      throw error;
+    }
 
     const status = controller.signal.aborted
       ? 'cancelled'
-      : result.code === 0
+      : !executionError && result.code === 0
         ? 'completed'
         : 'failed';
 
     return this.jobs.update(job.id, {
       status,
-      exitCode: result.code,
-      stopReason: result.parsed?.stopReason ?? null,
-      assistantText: tail(result.parsed?.assistantText?.trim() || result.stdout),
-      assistantTextTruncated: (result.parsed?.assistantText?.trim() || result.stdout || '').length > 8000,
+      exitCode: result?.code ?? null,
+      stopReason: result?.parsed?.stopReason ?? null,
+      assistantText: tail(result?.parsed?.assistantText?.trim() || result?.stdout),
+      assistantTextTruncated: (result?.parsed?.assistantText?.trim() || result?.stdout || '').length > 8000,
       captureAttempt: attempt,
-      error: result.code === 0 ? null : tail(result.stderr || result.stdout),
+      error: executionError ? tail(executionError.message) : result.code === 0 ? null : tail(result.stderr || result.stdout),
       changedFiles: captured.changedFiles,
       diffStat: captured.diffStat,
       patchAvailable: captured.patchAvailable,
@@ -376,7 +408,7 @@ export class AgentBroker {
       provider: job.provider ?? null,
       model: job.model ?? null,
       modelAlias: job.modelAlias ?? null,
-      runtimeModel: job.runtimeModel ?? job.model ?? null,
+      runtimeModel: Object.hasOwn(job, 'runtimeModel') ? job.runtimeModel : job.model ?? null,
       modelBinding: job.modelBinding ?? null,
       executionWarnings: job.executionWarnings ?? [],
       status: job.status,
