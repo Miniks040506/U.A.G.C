@@ -72,3 +72,20 @@ test('ACP restoration errors preserve uncertain termination classification and r
   assert.equal(await fs.readFile(config, 'utf8'), '{"external":"edit"}');
   assert.equal(JSON.parse(await fs.readFile(config + '.uagc-lock', 'utf8')).original, '{"ttl":30}');
 });
+
+test('ACP missing-session cleanup uses the same cwd spelling sent to acpx', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'uagc-close-alias-'));
+  const actual = path.join(root, 'actual'), alias = path.join(root, 'alias');
+  await fs.mkdir(actual);
+  await fs.symlink(actual, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  t.after(async () => { await fs.unlink(alias); await fs.rm(root, { recursive: true, force: true }); });
+  const adapter = new AcpxAdapter(); adapter.cli = path.join(root, 'cli.mjs');
+  // acpx resolves --cwd lexically; it retains short paths and directory aliases.
+  await fs.writeFile(adapter.cli, `import path from 'node:path';
+    const cwd = path.resolve(process.argv[process.argv.indexOf('--cwd') + 1]);
+    console.log(JSON.stringify({jsonrpc:'2.0',id:null,error:{code:-32603,message:'No named session "job" for cwd '+cwd+' and agent audit',data:{origin:'cli',acpxCode:'RUNTIME'}}}));
+    process.exit(1);`);
+  const job = { agent: 'audit', permissions: 'read-only', timeoutSeconds: 5, sessionName: 'job', workspace: { workspaceCwd: alias } };
+  assert.notEqual(path.resolve(alias), await fs.realpath(alias));
+  assert.equal((await adapter.close(job, { kind: 'acp', target: 'audit', builtin: true })).alreadyAbsent, true);
+});

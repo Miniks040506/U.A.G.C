@@ -111,7 +111,7 @@ export class AcpxAdapter {
       const result = await runCommand(process.execPath, args, { cwd: job.workspace.workspaceCwd, timeoutMs: 15000 });
       if (result.code !== 0) {
         // acpx 0.15.1 reports an absent named session as a structured CLI error.
-        const expected = `No named session "${job.sessionName}" for cwd ${await fs.realpath(job.workspace.workspaceCwd)} and agent ${agent.target ?? job.agent}`;
+        const expected = `No named session "${job.sessionName}" for cwd ${path.resolve(job.workspace.workspaceCwd)} and agent ${agent.target ?? job.agent}`;
         const absent = result.stdout.trim().split(/\r?\n/).some((line) => {
           try {
             const { error } = JSON.parse(line);

@@ -30,11 +30,12 @@ Run the full suite with `npm test`. Integration fixtures create temporary reposi
 
 ## v0.2.2 regression audit
 
-- Local Windows / Node 24.14.0: 28 tests pass, including real acpx with a deterministic worker that exits before session creation.
+- Local Windows / Node 24.14.0: 29 tests pass, including real acpx with a deterministic worker that exits before session creation.
 - The new regression cases were also run against a temporary copy of the v0.2.1 source. They failed for all five original defects: duplicate state ownership, missing partial patches, target branch drift, absent-session cleanup and declared-but-untransmitted CLI models.
 - Cross-process ownership is rejected before another gateway can alter a live job. Closing the owner permits a fresh broker to inspect interrupted jobs; abandoned locks require manual inspection.
 - Timeout and cancellation retain partial changes after confirmed local termination. Uncertain termination does not capture or allow cleanup; failed jobs cannot be applied.
 - Branch/HEAD drift and missing legacy target identity are rejected. Dirty targets and conflicting patches still preserve source files and index.
+- A directory-alias regression reproduces the Windows CI short-path mismatch. Missing-session matching now uses the exact resolved --cwd spelling passed to acpx, including Windows short paths.
 - Only the exact structured missing-session response from pinned acpx is tolerated during close. Permission/storage errors still propagate.
 - Follow-up review cases reject releasing ownership during workspace preparation and preserve uncertain-termination classification if ACP config restoration also fails. Both tests failed before their fixes and passed afterward.
 - CLI binding checks cover configuration loading, runtime-specific overrides, direct and formatted environment placeholders, and null public runtimeModel reporting.
