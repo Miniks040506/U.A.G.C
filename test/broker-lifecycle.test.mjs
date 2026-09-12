@@ -54,4 +54,13 @@ test('broker cancellation waits for worker exit and preserves terminal jobs', as
   await restarted.init();
   assert.equal((await restarted.status(id)).status, 'interrupted');
   await assert.rejects(restarted.cleanup(id), /unverified/);
+  const resumedId = '000000000003';
+  await broker.jobs.create({ id: resumedId, agent: 'slow', runtime: 'slow', kind: 'acp', status: 'completed', attempt: 1, exitCode: 0, stopReason: 'end_turn', assistantTextTruncated: true });
+  broker.cli.prompt = async () => { throw new Error('fixture setup failure'); };
+  await broker.resume(resumedId, 'retry');
+  const failed = await waitFor(broker, resumedId, (job) => job.status === 'failed');
+  assert.equal(failed.exitCode, null);
+  assert.equal(failed.stopReason, null);
+  assert.equal((await broker.jobs.get(resumedId)).assistantTextTruncated, false);
+
 });

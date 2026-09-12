@@ -22,7 +22,7 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
   };
   await git('init'); await git('config', 'core.autocrlf', 'false');
   await git('config', 'user.name', 'Audit'); await git('config', 'user.email', 'audit@example.invalid');
-  const originalConfig = '{"ttl":1}\n';
+  const originalConfig = '{"ttl":30}\n';
   await fs.writeFile(path.join(repo, '.acpxrc.json'), originalConfig);
   await fs.writeFile(path.join(repo, 'base.txt'), 'base\n');
   await git('add', '.'); await git('commit', '-m', 'fixture baseline');
@@ -40,6 +40,7 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
   await fs.writeFile(configFile, JSON.stringify(config));
   const child = spawn(process.execPath, [path.join(project, 'src/index.mjs'), '--config', configFile], { cwd: project, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let seq = 0, stderr = '';
+  const createdJobs = [];
   const pending = new Map(), lines = readline.createInterface({ input: child.stdout });
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   lines.on('line', (line) => {
@@ -50,11 +51,14 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
     message.error ? waiter.reject(new Error(JSON.stringify(message.error))) : waiter.resolve(message.result);
   });
   t.after(async () => {
+    for (const jobId of createdJobs) {
+      try { await call('agent_cancel', { jobId }); await call('agent_cleanup', { jobId }); } catch {}
+    }
     for (const waiter of pending.values()) { clearTimeout(waiter.timer); waiter.reject(new Error('Test closing')); }
     const closed = once(child, 'close');
     child.stdin.end(); child.kill(); await closed;
     lines.close();
-    // acpx queue owners exit after the fixture's one-second idle TTL.
+    // Sessions are closed explicitly; allow Windows to release residual handles.
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
@@ -69,7 +73,9 @@ test('MCP stdio exercises CLI and real acpx transport, permissions and same-sess
   const call = async (name, args = {}) => {
     const result = await request('tools/call', { name, arguments: args });
     assert.ok(!result.isError, `${name}: ${JSON.stringify(result)}`);
-    return result.structuredContent ?? JSON.parse(result.content[0].text);
+    const value = result.structuredContent ?? JSON.parse(result.content[0].text);
+    if (name === 'agent_delegate') createdJobs.push(value.id);
+    return value;
   };
   async function done(id, expected = 'completed') {
     for (let i = 0; i < 200; i++) {
