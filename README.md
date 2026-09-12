@@ -1,221 +1,82 @@
 # U.A.G.C
 
-**Universal Agent Gateway Connectivity** · v0.2.1
+**Universal Agent Gateway Connectivity**
 
-A local MCP gateway for delegating coding work to external agents, reviewing the resulting Git patch, and applying it to the original repository.
+Giao việc cho AI lập trình, xem lại thay đổi, rồi quyết định đưa vào dự án của bạn.
 
-U.A.G.C separates the coding **runtime** from its inference **provider** and **model**. Your MCP client remains responsible for planning, review, and approval; workers implement a bounded task in a separate Git worktree.
+[![Version](https://img.shields.io/badge/version-0.2.2-blue)](CHANGELOG.md)
+[![Tests](https://github.com/Miniks040506/U.A.G.C/actions/workflows/test.yml/badge.svg)](https://github.com/Miniks040506/U.A.G.C/actions/workflows/test.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-```text
-MCP client / architect
-  → resolve runtime + provider + model
-  → delegate task and plan
-  → worker edits an isolated Git worktree
-  → inspect status, summary, and patch
-  → resume the same ACP session with review feedback
-  → apply the reviewed patch
-  → validate the target repository and clean up
-```
+[Bắt đầu từng bước](docs/GETTING_STARTED.md) · [Cấu hình nâng cao](docs/TECHNICAL.md) · [Thay đổi phiên bản](CHANGELOG.md)
 
-> **Status:** an early local developer tool. MCP/ACP transport and repository workflows are tested with deterministic workers. The named third-party runtime profiles are configuration examples, not certified integrations. Worktrees provide Git isolation, not an operating-system sandbox.
+## UAGC giúp bạn làm gì?
 
-## What it provides
+Bạn mô tả yêu cầu trong ứng dụng AI. UAGC chuyển công việc cho một agent lập trình, giữ thay đổi trong bản làm việc riêng và trả kết quả để bạn xem trước khi áp dụng.
 
-- One stdio MCP server with 12 tools for discovery, delegation, review, and cleanup.
-- Runtime/model registries and reusable execution profiles.
-- Persistent ACP sessions through `acpx`, with a generic CLI adapter for other workers.
-- Asynchronous jobs, bounded process output, deadlines, and cancellation handling.
-- Worktree patches captured against the original commit, including changes committed by a worker.
-- Clean-target patch application that preserves the user's Git index.
-- Local job records, prompts, logs, and patches for inspection.
+- **Giao việc rõ ràng:** sửa lỗi, thêm chức năng hoặc review code theo yêu cầu.
+- **Xem trước thay đổi:** đọc báo cáo và phần code được sửa trước khi đưa về dự án.
+- **Yêu cầu sửa tiếp:** tiếp tục phiên làm việc với những agent hỗ trợ ACP.
 
-There is no hosted service, model router, web UI, or built-in credential manager.
+UAGC chạy trên máy bạn và cần một ứng dụng hỗ trợ MCP, chẳng hạn Claude Desktop. Không có giao diện chat riêng; tài khoản AI và agent thực hiện công việc được cấu hình riêng.
 
-## Requirements
+## Bắt đầu
 
-- Node.js **22.13 or newer** and Git on `PATH`.
-- An MCP client that can launch a stdio server.
-- Any coding runtime you intend to use, installed and authenticated separately.
-- A clean Git repository with at least one commit for worktree mode.
+### 1. Chuẩn bị
 
-For generic CLI workers on Windows, configure a native executable or `node.exe` plus a script path. Raw `.cmd`/`.bat` launchers are not supported by the shell-free CLI adapter.
+Cài [Node.js](https://nodejs.org/) **22.13 trở lên**, [Git](https://git-scm.com/downloads) và ứng dụng AI hỗ trợ MCP cục bộ. Đóng/mở lại terminal sau khi cài.
 
-## Install and validate
+### 2. Tải UAGC
 
-```sh
-git clone git@github.com:Miniks040506/U.A.G.C.git
+Trên GitHub, chọn **Code → Download ZIP**, giải nén và mở terminal trong thư mục chứa file `package.json`. Repo riêng tư yêu cầu tài khoản có quyền truy cập.
+
+Hoặc tải bằng Git:
+
+```powershell
+git clone https://github.com/Miniks040506/U.A.G.C.git
 cd U.A.G.C
-npm ci --ignore-scripts
-npm test
-npm run doctor -- --config ./agents.example.json
 ```
 
-On PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`.
+Cài các thành phần cần thiết và kiểm tra:
 
-The repository is private; cloning requires access. Installation is local to the checkout. Tests use temporary repositories and deterministic worker fixtures; they do not invoke a paid model or require provider credentials.
-
-`doctor` only checks executable discovery and configuration resolution. `FOUND` does **not** prove that the runtime is authenticated, its ACP handshake works, or the requested model is available.
-
-## Connect an MCP client
-
-Use the client's stdio-server configuration with absolute paths:
-
-```json
-{
-  "mcpServers": {
-    "uagc": {
-      "command": "node",
-      "args": [
-        "C:/tools/U.A.G.C/src/index.mjs",
-        "--config",
-        "C:/tools/U.A.G.C/agents.example.json"
-      ]
-    }
-  }
-}
+```powershell
+npm.cmd ci --ignore-scripts
+npm.cmd test
 ```
 
-Replace both paths with your checkout location. The existing executable/package name `universal-agent-mcp` and MCP server identity are retained for compatibility.
+macOS/Linux dùng `npm` thay cho `npm.cmd`. Bộ test dùng worker cục bộ, không gọi model trả phí.
 
-## Configuration
+### 3. Kết nối ứng dụng AI
 
-Use `agents.example.json` as a starting point. Remove unused example entries and replace model slugs with values supported by your provider and runtime.
+Làm theo [hướng dẫn cấu hình từng bước](docs/GETTING_STARTED.md): tạo file cấu hình, thêm UAGC vào Claude Desktop và chạy thử trên dự án mẫu. Hướng dẫn có đầy đủ nội dung để sao chép, đường dẫn cần thay và kết quả mong đợi.
 
-| Term | Meaning | Example |
-| --- | --- | --- |
-| Runtime | The agent program that reads, edits, and runs code | Hermes, Codex, OpenCode |
-| Provider | The inference service used by that runtime | OpenRouter |
-| Model | The model alias or concrete model identifier | `qwen` |
-| Profile | A named runtime/model combination | `qwen-hermes` |
+Bạn có thể thử kết nối bằng worker demo trước, chưa cần cài agent AI. Khi chuyển sang AI thật, chọn agent đã cài và đăng nhập theo [hướng dẫn này](docs/GETTING_STARTED.md#dùng-agent-ai-thật).
 
-The sample `qwen` runtime refers to **Qwen Code**. The sample `qwen` model alias refers to an inference model; these are different concepts.
+### 4. Giao công việc
 
-A minimal provider-aware ACP configuration:
+Sau khi kết nối và cấu hình agent, bạn có thể nhắn:
 
-```json
-{
-  "runtimes": {
-    "hermes": {
-      "kind": "acp",
-      "target": "hermes",
-      "argv": ["hermes", "acp"],
-      "prerequisite": "hermes",
-      "modelSelection": {
-        "supportsModel": true,
-        "supportsProvider": true,
-        "format": "{{provider}}:{{model}}"
-      }
-    }
-  },
-  "models": {
-    "qwen": { "provider": "openrouter", "model": "qwen/qwen3-coder" }
-  },
-  "profiles": {
-    "qwen-hermes": { "runtime": "hermes", "model": "qwen" }
-  },
-  "defaults": {
-    "workspaceMode": "worktree",
-    "permissions": "read-only",
-    "timeoutSeconds": 1800,
-    "maxDiffChars": 120000,
-    "strictModelBinding": true
-  }
-}
-```
+> Dùng UAGC với runtime tôi đã cấu hình để sửa lỗi trong dự án D:/repos/my-app. Hãy lập kế hoạch, làm việc trong worktree riêng, kiểm tra kết quả và trình bày thay đổi để tôi duyệt trước khi apply. Không commit hoặc push.
 
-The model ID above is an example; verify it with the chosen provider. Credentials remain with the runtime. Do not put secrets into committed configuration files. Workers inherit the gateway's process environment.
+Ứng dụng AI sẽ gọi các công cụ UAGC giúp bạn. Bạn không cần tự viết lệnh gọi tool.
 
-Resolution precedence is **explicit input → profile → defaults** for strict binding. Model aliases can also supply runtime-specific overrides. Capability flags are declarations: resolution verifies the declared compatibility, not which model a remote service actually used.
+## Trước khi dùng với dự án thật
 
-CLI runtimes define `kind: "cli"`, an `argv` array, and optional `env` values. Supported placeholders are `{{cwd}}`, `{{promptFile}}`, `{{prompt}}`, `{{runtime}}`, `{{provider}}`, `{{model}}`, and `{{runtimeModel}}`. Prefer `{{promptFile}}` for large prompts. Without a prompt placeholder in `argv`, the adapter sends the prompt on stdin.
+- Dự án cần có lịch sử Git và không có thay đổi chưa lưu thành commit. Đừng đổi nhánh hoặc tạo commit mới trong lúc chờ kết quả.
+- Chỉ cấp quyền ghi cho agent bạn tin tưởng. Bản làm việc riêng không phải môi trường cách ly toàn bộ máy tính.
+- Xem lại code và kết quả kiểm tra trước khi chấp thuận áp dụng. UAGC không tự commit/push; việc chờ bạn duyệt do ứng dụng AI quản lý.
+- Nếu công việc lỗi hoặc bị hủy, đọc phần thay đổi còn lại trước khi dọn bản làm việc.
 
-## Permissions and isolation
+**Trạng thái:** bản thử nghiệm cho sử dụng có giám sát. Luồng MCP/ACP đã được kiểm thử bằng worker cục bộ; danh sách agent có sẵn chưa đồng nghĩa mọi agent/model đã được xác minh thực tế.
 
-| Mode | Adapter | Behavior |
-| --- | --- | --- |
-| `read-only` | ACP | Approves ACP read/search requests; denies non-read permission requests. Default. |
-| `approve-all` | ACP | Explicitly auto-approves ACP permission requests. Use only with trusted workers and tasks. |
-| `runtime-managed` | CLI | Delegates permissions to the configured CLI. U.A.G.C does not enforce a filesystem policy. |
+## Cần trợ giúp?
 
-The ambiguous v0.2.0 `workspace-write` value is rejected. No mode creates an OS sandbox or controls operations an agent performs outside the ACP client. Use a separate container, VM, or OS account when stronger isolation is required.
-
-Worktree mode refuses a non-Git or dirty source directory. `shared` must be explicitly selected and permits direct edits in the source directory. Shared jobs cannot be applied through `agent_apply`; their changes already exist in place.
-
-## Review and apply workflow
-
-1. Inspect the target repository and write the implementation plan.
-2. Call `execution_resolve` with the intended runtime/model or profile.
-3. Start a worker with `agent_delegate`:
-
-```json
-{
-  "profile": "qwen-hermes",
-  "cwd": "D:/repos/my-app",
-  "task": "Implement the approved change",
-  "plan": "Describe the exact behavior, files, and acceptance checks",
-  "workspaceMode": "worktree",
-  "permissions": "approve-all"
-}
-```
-
-4. Poll `agent_status`, then inspect `agent_result`. Review the actual patch and worker diagnostics. A successful process exit does not mean its implementation is correct.
-5. For ACP jobs, call `agent_resume` with precise feedback before applying. CLI jobs do not support resume.
-6. After approval in your client, call `agent_apply`. The source must be clean; `allowDirty=true` is rejected. The patch is checked before application, and conflicting patches are rejected without a three-way merge.
-7. Run the target project's checks yourself, then call `agent_cleanup` to close the ACP session and remove its worktree and temporary branch.
-
-`agent_apply` does not create a commit or push. Approval is a responsibility of the caller; U.A.G.C does not implement an independent human-approval token. Applied or cleaned jobs cannot be resumed.
-
-## MCP tools
-
-| Tools | Purpose |
+| Bạn gặp gì? | Xem ở đâu? |
 | --- | --- |
-| `runtime_list`, `agent_list` | Runtime discovery; `agent_list` is the legacy alias |
-| `model_list`, `profile_list` | Configured aliases and profiles |
-| `execution_resolve` | Resolve a binding without launching a worker |
-| `agent_delegate` | Start a job and return its ID |
-| `agent_status`, `agent_result` | Status, diagnostics, summary, and captured patch |
-| `agent_resume` | Continue an ACP session with feedback |
-| `agent_cancel` | Cancel active work and wait for the local attempt to settle |
-| `agent_apply` | Apply a completed worktree patch to a clean target |
-| `agent_cleanup` | Close the ACP session and remove the worktree |
+| Chưa biết tải hoặc cấu hình | [Hướng dẫn bắt đầu](docs/GETTING_STARTED.md) |
+| Không thấy UAGC, không chạy được agent | [Xử lý lỗi thường gặp](docs/GETTING_STARTED.md#xử-lý-lỗi-thường-gặp) |
+| Muốn chọn model, provider hoặc runtime riêng | [Tài liệu kỹ thuật](docs/TECHNICAL.md) |
+| Muốn biết đã kiểm thử những gì | [Phạm vi kiểm chứng](docs/VERIFICATION.md) |
 
-## State and operational limits
-
-State defaults to `~/.universal-agent-mcp`. Override it with `stateDir` in configuration or `UAG_STATE_DIR`. Keep one gateway process per state directory; use separate state directories for separate client processes.
-
-Each job stores its resolved binding, prompt, attempt logs, workspace metadata, and patch. Job IDs are validated and job JSON updates are serialized and atomically replaced. State files can contain repository content and sensitive worker output; protect them as you would the source repository.
-
-- Process output is limited to 8 MiB per command; exceeding it fails the command. Result summaries retain the last 8,000 characters, with a truncation flag. Patch display is capped separately by `maxDiffChars`.
-- Generic process calls default to 60 seconds; worker calls use the job deadline. Process termination has an additional bounded grace period.
-- Cancellation is best effort for detached descendants. An unconfirmed termination becomes `termination-uncertain`, which blocks automatic cleanup and resume.
-- Jobs left active by a gateway restart become `interrupted`. Inspect surviving processes and recover manually; they are not automatically retried.
-- Custom ACP launch configuration uses an exclusive `.acpxrc.json.uagc-lock` recovery file. If another writer changes the config, U.A.G.C preserves that change and the original backup instead of overwriting it.
-- Avoid editing the target concurrently with apply. Git preflight reduces conflict risk; it is not a transaction against unrelated external filesystem writers or hardware failure.
-- Git submodules, detached daemon containment, and real provider authentication are not covered by the fixture integration suite.
-
-## Verification and development
-
-```sh
-npm test
-npm run doctor -- --config ./agents.example.json
-```
-
-The suite covers ID traversal, atomic state updates, config validation, permissions, timeout/cancel handling, Git safety, stale results, MCP stdio calls, and real `acpx` transport with a local fake ACP worker. CI runs Node 22 and 24 on Windows and Ubuntu. See [verification notes](docs/VERIFICATION.md) for the distinction between fixture coverage and live runtime testing.
-
-No new framework is required: the project uses JavaScript ES modules and Node's built-in test runner.
-
-## Troubleshooting
-
-| Symptom | Next step |
-| --- | --- |
-| `Cannot find package` | Run `npm ci --ignore-scripts` in this checkout. |
-| `FOUND` in doctor, worker still fails | Check the runtime's installation, authentication, adapter, and model support. |
-| Unsupported permission mode | Choose an explicit mode from the table above; update v0.2.0 config. |
-| Dirty source/target rejected | Review and commit or stash your changes before delegation/apply. |
-| ACP workspace busy/recovery lock | Confirm all related workers have stopped; inspect the lock's original config backup and current config before manual recovery. |
-| `interrupted` / `termination-uncertain` | Inspect worker processes, session logs, and the worktree before manual recovery. |
-| Patch truncated | Review the full local `patchFile`; truncation only affects the displayed result. |
-
-## License and provenance
-
-[MIT](LICENSE). This repository continues the user-supplied Universal Agent MCP v0.2.0 source. The initial import is preserved as small commits; v0.2.1 records the reviewed fixes and integration tests in [CHANGELOG.md](CHANGELOG.md).
+Phát triển từ Universal Agent MCP v0.2.0. Phát hành theo [MIT License](LICENSE).

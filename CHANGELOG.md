@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2
+
+- Reject concurrent gateway ownership of the same state directory before inspecting jobs.
+- Capture partial patches after confirmed timeout/cancellation; keep failed jobs ineligible for apply.
+- Require the original branch and HEAD before applying a patch; reject legacy jobs missing target identity.
+- Allow cleanup when an ACP session was never created, without hiding other session errors.
+- Validate CLI model/provider transport, including runtime overrides and environment templates.
+- Replace the README with a concise Vietnamese introduction, badges and a beginner setup guide.
+- Preserve advanced documentation in docs/TECHNICAL.md and add regression coverage.
+
 ## 0.2.1
 
 ### Safety and correctness

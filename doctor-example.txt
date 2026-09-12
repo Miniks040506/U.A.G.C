@@ -1,4 +1,4 @@
-U.A.G.C: v0.2.1
+U.A.G.C: v0.2.2
 Node: v24.14.0
 State: C:\Users\Miniks\.universal-agent-mcp
 
