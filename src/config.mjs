@@ -212,6 +212,9 @@ export function publicRuntimeView(name, runtime, available) {
     target: runtime.target ?? name,
     description: runtime.description ?? '',
     available,
+    readiness: available == null ? 'unknown' : available ? 'executable-found' : 'executable-missing',
+    connectionVerified: false,
+    permissionModes: runtime.kind === 'acp' ? ['read-only', 'approve-all'] : ['runtime-managed'],
     prerequisite: runtime.prerequisite ?? runtime.argv?.[0] ?? null,
     capabilities: {
       resume: runtime.kind === 'acp',

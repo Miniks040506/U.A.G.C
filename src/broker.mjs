@@ -56,7 +56,7 @@ export class AgentBroker {
   listRuntimes() {
     return Object.entries(this.runtimes()).map(([name, runtime]) => {
       const prerequisite = runtime.prerequisite ?? runtime.argv?.[0];
-      const available = prerequisite ? commandExists(prerequisite) : true;
+      const available = prerequisite ? commandExists(prerequisite) : null;
       return publicRuntimeView(name, runtime, available);
     });
   }

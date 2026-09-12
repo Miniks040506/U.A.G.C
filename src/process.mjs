@@ -1,7 +1,12 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { accessSync, constants, statSync } from 'node:fs';
+import path from 'node:path';
 
 export function commandExists(command) {
   if (!command) return false;
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    try { accessSync(command, constants.X_OK); return statSync(command).isFile(); } catch { return false; }
+  }
   const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], {
     stdio: 'ignore', windowsHide: true, timeout: 5000,
   });
