@@ -97,6 +97,9 @@ export class AgentBroker {
     if (typeof input.cwd !== 'string' || !input.cwd.trim() || typeof input.task !== 'string' || !input.task.trim()) throw new Error('cwd and task are required.');
     const timeout = input.timeoutSeconds ?? this.config.defaults.timeoutSeconds;
     if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 21600) throw new Error('Invalid worker timeout.');
+    for (const key of ['plan', 'extraContext']) {
+      if (input[key] != null && typeof input[key] !== 'string') throw new Error(`${key} must be a string.`);
+    }
     const id = shortId();
     const workspace = await this.workspaces.prepare(
       input.cwd,
@@ -216,6 +219,7 @@ export class AgentBroker {
       finishedAt: null,
       patchAvailable: false,
       assistantText: '',
+      captureAttempt: null,
       changedFiles: [],
       diffStat: '',
       startedAt: now(),
@@ -254,7 +258,9 @@ export class AgentBroker {
       status,
       exitCode: result.code,
       stopReason: result.parsed?.stopReason ?? null,
-      assistantText: result.parsed?.assistantText?.trim() || tail(result.stdout),
+      assistantText: tail(result.parsed?.assistantText?.trim() || result.stdout),
+      assistantTextTruncated: (result.parsed?.assistantText?.trim() || result.stdout || '').length > 8000,
+      captureAttempt: attempt,
       error: result.code === 0 ? null : tail(result.stderr || result.stdout),
       changedFiles: captured.changedFiles,
       diffStat: captured.diffStat,
@@ -324,9 +330,10 @@ export class AgentBroker {
   async result(jobId, { includeDiff = true, maxDiffChars } = {}) {
     const job = await this.requireJob(jobId);
     const limit = maxDiffChars ?? this.config.defaults.maxDiffChars;
+    if (!Number.isInteger(limit) || limit < 1000 || limit > 1000000) throw new Error('maxDiffChars must be an integer between 1000 and 1000000.');
     let diff = '';
     let diffTruncated = false;
-    if (includeDiff && job.patchAvailable && job.patchFile) {
+    if (includeDiff && job.captureAttempt === job.attempt && job.patchFile) {
       try {
         const raw = await fs.readFile(job.patchFile, 'utf8');
         diffTruncated = raw.length > limit;
@@ -336,6 +343,7 @@ export class AgentBroker {
     return {
       ...this.publicJob(job),
       assistantText: job.assistantText,
+      assistantTextTruncated: job.assistantTextTruncated ?? false,
       error: job.error,
       changedFiles: job.changedFiles,
       diffStat: job.diffStat,

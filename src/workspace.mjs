@@ -43,7 +43,7 @@ export class WorkspaceManager {
         originalGitRoot: gitRoot,
         worktreePath: null,
         branch: null,
-        note: requestedMode === 'worktree' && !gitRoot ? 'Not a git repository; fell back to shared workspace.' : null,
+        note: 'Shared workspace: edits happen directly in the source directory.',
       };
     }
 
@@ -56,7 +56,7 @@ export class WorkspaceManager {
     const branch = `uagent/${jobId}`;
     await fs.mkdir(path.dirname(worktreePath), { recursive: true });
 
-    await git(gitRoot, ['worktree', 'add', '-b', branch, worktreePath, 'HEAD']);
+    await git(gitRoot, ['worktree', 'add', '-b', branch, worktreePath, baseCommit]);
 
     return {
       requestedMode,
