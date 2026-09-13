@@ -8,7 +8,7 @@ Hướng dẫn này đi từ tải xuống đến lần chạy đầu tiên. Ví
 
 1. Cài [Node.js](https://nodejs.org/) 22.13 trở lên và [Git](https://git-scm.com/downloads).
 2. Cài, mở và đăng nhập [Claude Desktop](https://claude.ai/download). Cần ứng dụng desktop hỗ trợ MCP cục bộ; chỉ mở website chat chưa đủ cho cách cấu hình này.
-3. Trên [repo UAGC](https://github.com/Miniks040506/U.A.G.C), chọn **Code → Download ZIP**, giải nén. Đặt thư mục có `package.json` tại `C:\tools\U.A.G.C`. Nếu GitHub báo 404, kiểm tra bạn đã đăng nhập tài khoản có quyền vào repo riêng tư.
+3. Trên [repo UAGC](https://github.com/Miniks040506/U.A.G.C), chọn **Code → Download ZIP**, giải nén. Đặt thư mục có `package.json` tại `C:\tools\U.A.G.C`. Có thể dùng [link tải ZIP trực tiếp](https://github.com/Miniks040506/U.A.G.C/archive/refs/heads/main.zip). Thư mục giải nén thường có tên `U.A.G.C-main`; đổi tên thành `U.A.G.C` để khớp ví dụ.
 4. Mở PowerShell từ Start và chạy lần lượt:
 
 ```powershell
@@ -22,6 +22,21 @@ npm.cmd test
 Hai lệnh version cần hiện số phiên bản. Lệnh cuối cần báo `fail 0`. Không cần tự chạy `npm start` khi dùng Claude Desktop; ứng dụng sẽ mở UAGC giúp bạn.
 
 **macOS/Linux:** dùng Terminal, thay đường dẫn Windows bằng đường dẫn tuyệt đối trên máy và dùng `npm` thay cho `npm.cmd`. Có thể lấy đường dẫn Node bằng `command -v node`.
+
+### Nếu muốn tải bằng Git
+
+Thay bước tải ZIP bằng các lệnh sau, với thư mục đích chưa tồn tại:
+
+```powershell
+New-Item -ItemType Directory -Force -Path 'C:\tools'
+Set-Location 'C:\tools'
+git clone https://github.com/Miniks040506/U.A.G.C.git
+Set-Location '.\U.A.G.C'
+npm.cmd ci --ignore-scripts
+npm.cmd test
+```
+
+**Chưa có Claude hoặc Hermes?** Bạn có thể dừng sau khi test báo `fail 0`. Bộ test chạy bằng worker giả lập trên máy, không cần tài khoản AI; lần tải thư viện vẫn cần Internet. Demo qua cửa sổ chat ở bước 3–4 cần ứng dụng chủ còn khả năng gửi yêu cầu. Không cần mua model chỉ để chạy bộ test.
 
 ## 2. Tạo cấu hình chạy thử
 
@@ -188,6 +203,82 @@ Ví dụ câu nhắn cho công việc thật:
 Nếu cần sửa tiếp, nhắn rõ lỗi cần sửa và yêu cầu `agent_resume` với job ID đó. Review kết quả mới trước apply. Sau apply, chạy kiểm tra của dự án rồi mới cleanup. Job đã apply không được resume.
 
 Tên runtime xuất hiện trong danh sách không phải chứng nhận tương thích. Hermes/provider thật chưa nằm trong bài test end-to-end của repo. [Cấu hình model alias, profile và CLI khác](TECHNICAL.md#configuration) dành cho khi bạn đã xác minh tổ hợp muốn dùng.
+
+## Ví dụ giao việc từng bước
+
+Ví dụ này dành cho **agent thật đã cài, đăng nhập và kiểm tra riêng** theo phần trên. Thay `D:/repos/my-app` bằng đường dẫn dự án của bạn và `hermes` bằng runtime đã cấu hình. Đây là các câu nhắn mẫu cho ứng dụng chủ, không phải lệnh PowerShell và không phải kết quả model đã được repo xác minh.
+
+### A. Review trước, chưa sửa file
+
+Mở terminal trong dự án, chạy `git status --short`. Nếu có thay đổi, lưu thành commit hoặc cất riêng trước khi bắt đầu. Dự án cần có ít nhất một commit.
+
+Gửi trong cửa sổ chat:
+
+> Gọi runtime_list của UAGC để kiểm tra hermes. Nếu khả dụng, dùng agent_delegate với runtime hermes, cwd D:/repos/my-app, workspaceMode worktree, permissions read-only. Task: review cách tính tổng tiền khi số lượng bằng 0. Plan: tìm hàm tính tiền, đọc test liên quan, báo lỗi và đề xuất cách sửa. Chưa sửa file. Theo dõi agent_status đến khi kết thúc, đọc agent_result và báo job ID cùng kết quả.
+
+Bạn cần thấy job ID thật và kết quả từ tool. `FOUND` mới chỉ xác nhận có chương trình; nếu đăng nhập hoặc model lỗi, sửa cấu hình đó trước khi giao việc tiếp.
+
+### B. Giao một thay đổi nhỏ
+
+Sau khi xem review, tạo **job mới** có quyền ghi:
+
+> Tạo job mới bằng UAGC runtime hermes trong D:/repos/my-app, workspaceMode worktree, permissions approve-all. Task: sửa lỗi vừa xác định khi số lượng bằng 0. Plan: xác nhận hành vi mong đợi từ yêu cầu dự án, sửa tối thiểu, thêm hoặc cập nhật test cho lỗi này và chạy test liên quan. Nếu chưa rõ hành vi mong đợi, hỏi tôi trước khi chạy. Chỉ sửa phần liên quan. Đọc agent_result, trình bày patch, lệnh test và kết quả thực tế. Chờ tôi duyệt trước agent_apply; chưa cleanup, không commit/push.
+
+`approve-all` cho phép tự chấp thuận yêu cầu quyền của worker ACP. Chỉ dùng với agent và dự án bạn tin tưởng. Lời nhắn chờ duyệt do ứng dụng chủ thực hiện; UAGC chưa có màn hình xác nhận riêng.
+
+### C. Yêu cầu sửa tiếp khi chưa apply
+
+Nếu còn thiếu một trường hợp, dùng đúng job ID của bước B:
+
+> Với job JOB_ID vừa tạo, gọi agent_resume để bổ sung test cho trường hợp số lượng bằng 1, giữ nguyên phạm vi sửa. Chạy lại test, đọc agent_result và cho tôi xem patch mới. Chưa apply hoặc cleanup.
+
+Thay `JOB_ID` bằng ID thật. Sửa tiếp yêu cầu runtime ACP hỗ trợ resume và job chưa apply; worker demo không hỗ trợ bước này. Nếu không hỗ trợ resume, tạo job mới với yêu cầu đầy đủ.
+
+### D. Duyệt và áp dụng
+
+Sau khi đọc patch và kết quả test:
+
+> Tôi duyệt patch của job JOB_ID. Hãy gọi agent_apply cho đúng job đó và báo kết quả. Chưa cleanup, không commit/push.
+
+Mở terminal trong **dự án của bạn**:
+
+```powershell
+Set-Location 'D:\repos\my-app'
+git status --short
+git diff
+```
+
+Chạy lệnh kiểm tra của dự án; ví dụ `npm.cmd test` chỉ khi dự án có script test đó. Kiểm tra cả file mới trong danh sách status: `git diff` mặc định không hiển thị nội dung file chưa được Git theo dõi. Khi hài lòng, bạn có thể tự commit; sau đó yêu cầu `agent_cleanup` cho từng job không cần giữ nữa, gồm cả job review ở bước A.
+
+### Cùng ý định bằng tiếng Anh
+
+> Use UAGC with runtime hermes in D:/repos/my-app. First prepare a focused plan for the zero-quantity total calculation bug. Delegate implementation in a separate worktree with approve-all permissions, run the relevant tests, then show me the job ID, patch and actual test results. Wait for my approval before agent_apply. Do not commit, push or clean up yet.
+
+Ứng dụng chủ/model chịu trách nhiệm hiểu ngôn ngữ và chọn tool. UAGC nhận task/plan từ ứng dụng đó; chưa có bảo đảm mọi model sẽ hiểu hoặc gọi đúng chỉ từ câu nhắn này.
+
+## Cập nhật và gỡ cài đặt
+
+### Cập nhật
+
+Hoàn tất hoặc lưu lại kết quả các job đang chạy, thoát ứng dụng chủ và sao lưu `agents.local.json` trước khi cập nhật. Không chạy đồng thời hai gateway dùng chung `stateDir`.
+
+- **Cài bằng ZIP:** tải ZIP mới, giải nén vào thư mục mới, chép cấu hình cá nhân sang và chạy `npm.cmd ci --ignore-scripts`, rồi `npm.cmd test`. Nếu vị trí thay đổi, sửa đường dẫn UAGC trong cấu hình ứng dụng chủ. Giữ bản cũ đến khi đã kiểm tra bản mới.
+- **Cài bằng Git:** trong thư mục UAGC, kiểm tra `git status --short`. Khi không có thay đổi source cần giữ, chạy lần lượt:
+
+```powershell
+git pull --ff-only
+npm.cmd ci --ignore-scripts
+npm.cmd test
+```
+
+Đọc [CHANGELOG](../CHANGELOG.md) trước khi mở lại ứng dụng chủ. Nếu Git báo xung đột hoặc từ chối cập nhật, dừng và xử lý thay đổi của bạn; không dùng lệnh reset để ép chạy.
+
+### Gỡ cài đặt
+
+1. Lưu lại phần việc cần giữ; gọi `agent_cleanup` cho các job đã kiểm tra xong khi gateway còn chạy.
+2. Trong cấu hình MCP của ứng dụng chủ, xóa riêng mục `uagc`, giữ các công cụ khác và bảo đảm JSON còn hợp lệ. Thoát hẳn ứng dụng để gateway dừng.
+3. Xóa thư mục cài UAGC khi không còn cần. State nằm ở vị trí riêng trong `stateDir`; chỉ xóa sau khi chắc chắn đã lưu prompt, log và thay đổi cần giữ, đồng thời không còn gateway/worker sử dụng nó.
+4. Node.js, Git và agent AI được cài riêng. Không cần gỡ chúng nếu còn dùng cho dự án khác.
 
 ## Xử lý lỗi thường gặp
 

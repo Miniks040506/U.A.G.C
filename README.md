@@ -2,14 +2,14 @@
 
 **Universal Agent Gateway Connectivity**
 
-Giao việc cho AI lập trình, xem lại thay đổi, rồi quyết định đưa vào dự án của bạn.
+Để ứng dụng AI lập kế hoạch, giao phần thực hiện cho agent lập trình và trả thay đổi về để bạn duyệt.
 
 [![Version](https://img.shields.io/badge/version-0.2.2-blue)](CHANGELOG.md)
 [![Tests](https://github.com/Miniks040506/U.A.G.C/actions/workflows/test.yml/badge.svg)](https://github.com/Miniks040506/U.A.G.C/actions/workflows/test.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Bắt đầu từng bước](docs/GETTING_STARTED.md) · [Cấu hình nâng cao](docs/TECHNICAL.md) · [Thay đổi phiên bản](CHANGELOG.md)
+[Tải ZIP](https://github.com/Miniks040506/U.A.G.C/archive/refs/heads/main.zip) · [Bắt đầu từng bước](docs/GETTING_STARTED.md) · [Cấu hình nâng cao](docs/TECHNICAL.md) · [Thay đổi phiên bản](CHANGELOG.md)
 
 ## UAGC giúp bạn làm gì?
 
@@ -29,7 +29,7 @@ Cài [Node.js](https://nodejs.org/) **22.13 trở lên**, [Git](https://git-scm.
 
 ### 2. Tải UAGC
 
-Trên GitHub, chọn **Code → Download ZIP**, giải nén và mở terminal trong thư mục chứa file `package.json`. Repo riêng tư yêu cầu tài khoản có quyền truy cập.
+Chọn **[Tải ZIP](https://github.com/Miniks040506/U.A.G.C/archive/refs/heads/main.zip)**, giải nén và mở terminal trong thư mục chứa file `package.json`. ZIP là mã nguồn từ nhánh `main`; bản hiện tại chưa có bộ cài `.exe` hay trình cấu hình tự động.
 
 Hoặc tải bằng Git:
 
@@ -59,7 +59,7 @@ Sau khi kết nối và cấu hình agent, bạn có thể nhắn:
 
 > Dùng UAGC với runtime tôi đã cấu hình để sửa lỗi trong dự án D:/repos/my-app. Hãy lập kế hoạch, làm việc trong worktree riêng, kiểm tra kết quả và trình bày thay đổi để tôi duyệt trước khi apply. Không commit hoặc push.
 
-Ứng dụng AI sẽ gọi các công cụ UAGC giúp bạn. Bạn không cần tự viết lệnh gọi tool.
+Ứng dụng AI hỗ trợ MCP có thể gọi các công cụ UAGC giúp bạn. Nếu ứng dụng chỉ trả lời bằng văn bản, yêu cầu gọi tool và kiểm tra có job ID thật. Xem [ví dụ giao việc, sửa tiếp và duyệt từng bước](docs/GETTING_STARTED.md#ví-dụ-giao-việc-từng-bước).
 
 ## Trước khi dùng với dự án thật
 
@@ -68,7 +68,7 @@ Sau khi kết nối và cấu hình agent, bạn có thể nhắn:
 - Xem lại code và kết quả kiểm tra trước khi chấp thuận áp dụng. UAGC không tự commit/push; việc chờ bạn duyệt do ứng dụng AI quản lý.
 - Nếu công việc lỗi hoặc bị hủy, đọc phần thay đổi còn lại trước khi dọn bản làm việc.
 
-**Trạng thái:** bản thử nghiệm cho sử dụng có giám sát. Luồng MCP/ACP đã được kiểm thử bằng worker cục bộ; danh sách agent có sẵn chưa đồng nghĩa mọi agent/model đã được xác minh thực tế.
+**Trạng thái:** v0.2.2, bản thử nghiệm cho sử dụng có giám sát. Chưa đo mức tiết kiệm token hoặc xác minh việc tự giao việc từ prompt tiếng Việt/Anh với model thật. Luồng MCP/ACP đã được kiểm thử bằng worker cục bộ; danh sách agent có sẵn chưa đồng nghĩa mọi agent/model đã được xác minh thực tế.
 
 ## Cần trợ giúp?
 
@@ -77,6 +77,7 @@ Sau khi kết nối và cấu hình agent, bạn có thể nhắn:
 | Chưa biết tải hoặc cấu hình | [Hướng dẫn bắt đầu](docs/GETTING_STARTED.md) |
 | Không thấy UAGC, không chạy được agent | [Xử lý lỗi thường gặp](docs/GETTING_STARTED.md#xử-lý-lỗi-thường-gặp) |
 | Muốn chọn model, provider hoặc runtime riêng | [Tài liệu kỹ thuật](docs/TECHNICAL.md) |
+| Muốn cập nhật hoặc gỡ UAGC | [Cập nhật và gỡ cài đặt](docs/GETTING_STARTED.md#cập-nhật-và-gỡ-cài-đặt) |
 | Muốn biết đã kiểm thử những gì | [Phạm vi kiểm chứng](docs/VERIFICATION.md) |
 
 Phát triển từ Universal Agent MCP v0.2.0. Phát hành theo [MIT License](LICENSE).
